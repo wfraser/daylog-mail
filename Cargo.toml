@@ -1,0 +1,13 @@
+[package]
+name = "daylog-email"
+version = "0.1.0"
+authors = ["Bill Fraser <wfraser@codewise.org>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+failure = "0.1.5"
+#mbox-reader = "0.1.0"
+mbox-reader = { git = "https://github.com/wfraser/mbox-reader", rev = "04e7073f261019153447c3687d420c291733d220" }
+mailparse = "0.8.2"

@@ -1,39 +1,64 @@
+mod ingest;
 mod message_id;
 mod mail;
+mod send;
 
-use crate::mail::MailSource;
 use failure::Error;
 use std::path::PathBuf;
+use structopt::StructOpt;
 
-fn main() -> Result<(), Error> {
-    let mbox = mail::UnixMbox::from_path(PathBuf::from(std::env::args_os().nth(1).expect("missing mbox path argument")));
-    let read = mbox.open_for_read()?;
-    for mail_result in read.peek()? {
-        let mail = mail_result?;
-        println!("{:#?}", mail);
-    }
+#[derive(StructOpt, Debug)]
+enum Args {
+    /// Process incoming mail
+    Ingest(IngestArgs),
 
-    // FIXME!!
-    let crypto_key = [0u8; 32];
-
-    let msgid = message_id::gen_message_id(
-        &std::env::var("USERNAME").unwrap(),
-        &todays_date(),
-        crypto_key,
-    ).expect("failed to generate message ID");
-
-    println!("sample message ID: {}", msgid);
-
-    println!("do we recognize it? {:?}", message_id::is_our_message_id(&msgid));
-
-    let (user, date) = message_id::verify_message_id(&msgid, crypto_key)
-        .expect("failed to verify message ID");
-
-    println!("and parsed it again: {:?}, {:?}", user, date);
-
-    Ok(())
+    /// Send a user their daily email.
+    Send(SendArgs),
 }
 
-fn todays_date() -> String {
-    chrono::Utc::today().format("%Y-%m-%d").to_string()
+#[derive(StructOpt, Debug)]
+pub struct IngestArgs {
+    /// path to the Unix mbox file to read emails from
+    #[structopt(long)]
+    mbox: PathBuf,
+
+    /// path to database file
+    #[structopt(long)]
+    database: PathBuf,
+
+    /// show what would be done, but do not make any changes
+    #[structopt(long = "dry-run")]
+    dry_run: bool,
+}
+
+#[derive(StructOpt, Debug)]
+pub struct SendArgs {
+    /// Username
+    #[structopt(long)]
+    username: String,
+
+    /// Email address to send to.
+    #[structopt(long)]
+    email: String,
+
+    /// Timezone the user is in; this is used to determine the correct value for today's date.
+    #[structopt(long, default_value = "UTC")]
+    timezone: chrono_tz::Tz,
+}
+
+fn main() -> Result<(), Error> {
+    let args = Args::from_args();
+    println!("{:#?}", args);
+
+    match args {
+        Args::Ingest(args) => ingest::ingest(args),
+        Args::Send(args) => send::send(args),
+    }
+}
+
+pub fn todays_date<Tz>(tz: &Tz) -> String
+    where Tz: chrono::TimeZone,
+          Tz::Offset: std::fmt::Display,
+{
+    chrono::Utc::now().with_timezone(tz).date().format("%Y-%m-%d").to_string()
 }

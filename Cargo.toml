@@ -9,8 +9,10 @@ edition = "2018"
 [dependencies]
 base64 = "0.10.1"
 chrono = "0.4.9"
+chrono-tz = "0.5.1"
 failure = "0.1.5"
 #mbox-reader = "0.1.0"
 mbox-reader = { git = "https://github.com/wfraser/mbox-reader", rev = "04e7073f261019153447c3687d420c291733d220" }
 mailparse = "0.8.2"
 ring = "0.16.9"
+structopt = "0.3.2"

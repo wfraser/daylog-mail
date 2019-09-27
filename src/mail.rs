@@ -49,14 +49,19 @@ impl MailSource for ReadableUnixMbox {
 /// message IDs.
 #[derive(Debug)]
 pub struct Mail {
-    reply_to: Vec<String>, // message IDs in 'References:' header
-    body: String,
+    pub msgid: String,
+    pub reply_to: Vec<String>, // message IDs in 'References:' header
+    pub body: String,
 }
 
 impl Mail {
     pub fn parse(raw: &[u8]) -> Result<Self, Error> {
         let parsed = mailparse::parse_mail(raw)
             .context("failed to parse email")?;
+
+        let msgid = parsed.headers.get_first_value("message-id")
+            .context("message has invalid Message-ID")?
+            .ok_or_else(|| failure::err_msg("message lacks a Message-ID"))?;
 
         let reply_to = parsed.headers.get_first_value("References")
             .context("failed to parse References header")?
@@ -91,6 +96,7 @@ impl Mail {
         };
 
         Ok(Mail {
+            msgid,
             reply_to,
             body,
         })

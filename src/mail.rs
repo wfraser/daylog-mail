@@ -1,10 +1,14 @@
 use failure::{Error, ResultExt};
-use std::path::PathBuf;
+use std::ffi::OsStr;
+use std::fs::{self, OpenOptions};
+use std::io;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 use mailparse::MailHeaderMap;
 use mbox_reader::MboxFile;
 
 pub trait MailSource {
-    fn peek<'a>(&'a self) -> Result<Box<(dyn Iterator<Item = Result<Mail, Error>> + 'a)>, Error>;
+    fn read<'a>(&'a self) -> Result<Box<(dyn Iterator<Item = Result<Mail, Error>> + 'a)>, Error>;
 }
 
 pub struct UnixMbox {
@@ -16,23 +20,64 @@ impl UnixMbox {
         Self { path }
     }
 
-    pub fn open_for_read(&self) -> Result<ReadableUnixMbox, Error> {
+    pub fn open_for_read(&self) -> Result<OpenedUnixMbox, Error> {
+        let dotlock = DotLock::new(&self.path)?;
 
-        // TODO(wfraser) figure out how locking is supposed to be done exactly
-
-        Ok(ReadableUnixMbox {
+        Ok(OpenedUnixMbox {
             mmapped_file: MboxFile::from_file(&self.path)
                 .with_context(|e| format!("unable to open mailbox file {:?}: {}", self.path, e))?,
+            _dotlock: dotlock,
         })
     }
 }
 
-pub struct ReadableUnixMbox {
-    mmapped_file: MboxFile,
+pub struct DotLock {
+    path: PathBuf,
 }
 
-impl MailSource for ReadableUnixMbox {
-    fn peek<'a>(&'a self) -> Result<Box<(dyn Iterator<Item = Result<Mail, Error>> + 'a)>, Error> {
+impl DotLock {
+    pub fn new(base_path: impl AsRef<Path>) -> io::Result<Self> {
+        let mut filename = base_path.as_ref().file_name().unwrap_or_default().to_owned();
+        filename.push(OsStr::new(".lock"));
+        let path = base_path.as_ref().with_file_name(filename);
+
+        let mut options = OpenOptions::new();
+        options.read(false)
+            .write(false)
+            .append(false)
+            .create_new(true);
+
+        for _retry in 0 .. 20 {
+            match options.open(&path) {
+                Ok(_file) => return Ok(Self { path }),
+                Err(e) => {
+                    if e.kind() == io::ErrorKind::AlreadyExists {
+                        // sleep and retry
+                        std::thread::sleep(Duration::from_secs(1));
+                    } else {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        Err(io::ErrorKind::AlreadyExists.into())
+    }
+}
+
+impl Drop for DotLock {
+    fn drop(&mut self) {
+        fs::remove_file(&self.path).expect("unable to remove mbox lock file");
+    }
+}
+
+pub struct OpenedUnixMbox {
+    mmapped_file: MboxFile,
+    _dotlock: DotLock,
+}
+
+impl MailSource for OpenedUnixMbox {
+    fn read<'a>(&'a self) -> Result<Box<(dyn Iterator<Item = Result<Mail, Error>> + 'a)>, Error> {
         Ok(Box::new(self.mmapped_file.iter()
             .map(|entry| {
                 entry.message()

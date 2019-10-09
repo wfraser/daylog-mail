@@ -9,7 +9,7 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
     let read = mbox.open_for_read()?;
     let mut num_processed = 0;
     let mut num_actioned = 0;
-    for mail_result in read.peek()? {
+    for mail_result in read.read()? {
         num_processed += 1;
         let mail = mail_result?;
 

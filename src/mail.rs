@@ -17,7 +17,9 @@ pub struct UnixMbox;
 
 impl UnixMbox {
     pub fn open(path: &Path) -> Result<OpenedUnixMbox, Error> {
-        let dotlock = DotLock::new(path)?;
+        let dotlock = DotLock::new(path)
+            .with_context(|e| format!("failed to create .lock file: {}", e))?;
+
         let file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -25,7 +27,8 @@ impl UnixMbox {
             .open(path)
             .with_context(|e| format!("failed to open mbox file {:?}: {}", path, e))?;
 
-        file.lock_exclusive()?;
+        file.lock_exclusive()
+            .with_context(|e| format!("failed to lock mbox file {:?} for exclusive access: {}", path, e))?;
 
         // safety: safe because we locked the file above
         let mmapped_file = unsafe { MboxFile::from_file(&file) }
@@ -51,7 +54,7 @@ impl DotLock {
 
         let mut options = OpenOptions::new();
         options.read(false)
-            .write(false)
+            .write(true)
             .append(false)
             .create_new(true);
 

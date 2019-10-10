@@ -50,7 +50,8 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
     println!("{} mails read, {} actioned", num_processed, num_actioned);
 
     if !args.dry_run {
-        // TODO: truncate mbox
+        mbox.truncate();
     }
+
     Ok(())
 }

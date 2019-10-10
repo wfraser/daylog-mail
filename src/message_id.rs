@@ -42,7 +42,7 @@ pub fn gen_message_id(username: &str, date: &str, key_bytes: [u8; 32]) -> Result
 }
 
 pub fn verify_message_id(message_id: &str, key_bytes: [u8; 32]) -> Result<(String, String), failure::Error> {
-    let mut parts = message_id.split('.');
+    let mut parts = message_id.split('@').next().unwrap().split('.');
     let mut extract = || parts.next().ok_or_else(|| failure::err_msg("not enough parts"));
 
     let ident = extract()?;

@@ -2,6 +2,7 @@ use crate::mail::{self, MailSource};
 use crate::message_id::{is_our_message_id, read_secret_key, verify_message_id};
 use crate::IngestArgs;
 use failure::ResultExt;
+use regex::Regex;
 
 pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
     let key_bytes = read_secret_key(&args.common_args.key_path)
@@ -26,7 +27,10 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
             if args.dry_run {
                 println!("Message {:?} is interesting", mail.msgid);
             }
-            // TODO: process the email body
+
+            let body = process_body(&mail.body);
+            println!("body:\n{}", body);
+
             for msgid in msgids {
                 let (username, date) = match verify_message_id(&msgid, key_bytes) {
                     Ok((username, date)) => {
@@ -55,4 +59,20 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
     }
 
     Ok(())
+}
+
+fn process_body(input: &str) -> String {
+    let quote_begin = Regex::new("\nOn (Mon|Tue|Wed|Thu|Fri|Sat|Sun), (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [^>]+([^\n]>)? wrote:\n>").unwrap();
+    let signature = Regex::new("(?s)\n-- \n.*$").unwrap();
+
+    signature.replace_all(&quote_begin.replace_all(input, "\n>"), "")
+        .lines()
+        .filter(|line| !line.starts_with('>'))
+        .fold(String::new(), |mut acc, line| {
+            acc.push('\n');
+            acc += &line;
+            acc
+        })
+        .trim()
+        .to_string()
 }

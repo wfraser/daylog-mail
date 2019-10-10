@@ -64,6 +64,10 @@ pub struct SendArgs {
     /// Timezone the user is in; this is used to determine the correct value for today's date.
     #[structopt(long, default_value = "UTC")]
     timezone: chrono_tz::Tz,
+
+    /// The value for the From: address on outgoing mail
+    #[structopt(long("return-addr"))]
+    return_addr: String,
 }
 
 fn main() -> Result<(), Error> {

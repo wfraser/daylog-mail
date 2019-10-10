@@ -5,7 +5,8 @@ use failure::ResultExt;
 
 pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
     let key_bytes = read_secret_key(&args.common_args.key_path)
-        .context("failed to read secret key")?;
+        .with_context(|e|
+            format!("failed to read secret key {:?}: {}", args.common_args.key_path, e))?;
 
     let mbox = mail::UnixMbox::open(&args.mbox_path)?;
     let mut num_processed = 0;

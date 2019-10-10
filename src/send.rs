@@ -6,12 +6,13 @@ use std::process::{Command, Stdio};
 
 pub fn send(args: SendArgs) -> Result<(), failure::Error> {
     let key_bytes = read_secret_key(&args.common_args.key_path)
-        .context("failed to read secret key")?;
+        .with_context(|e|
+            format!("failed to read secret key {:?}: {}", args.common_args.key_path, e))?;
 
     let today = todays_date(&args.timezone);
 
     let msgid = message_id::gen_message_id(&args.username, &today, key_bytes)
-        .expect("failed to generate message ID");
+        .with_context(|e| format!("failed to generate message ID: {}", e))?;
 
     let mut child = Command::new("mail")
         .arg("-C")

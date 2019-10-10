@@ -124,13 +124,14 @@ impl Mail {
 
         let msgid = parsed.headers.get_first_value("message-id")
             .context("message has invalid Message-ID")?
+            .map(trim_msgid)
             .ok_or_else(|| failure::err_msg("message lacks a Message-ID"))?;
 
         let reply_to = parsed.headers.get_first_value("References")
             .context("failed to parse References header")?
             .unwrap_or_else(String::new)
             .split_ascii_whitespace()
-            .map(str::to_owned)
+            .map(trim_msgid)
             .collect::<Vec<_>>();
 
         let body = if parsed.subparts.is_empty() {
@@ -164,4 +165,12 @@ impl Mail {
             body,
         })
     }
+}
+
+fn trim_msgid(s: impl AsRef<str>) -> String {
+    s.as_ref()
+        .trim()
+        .trim_start_matches('<')
+        .trim_end_matches('>')
+        .to_owned()
 }

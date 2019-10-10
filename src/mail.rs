@@ -1,4 +1,5 @@
 use failure::{Error, ResultExt};
+use fs2::FileExt;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::io;
@@ -29,6 +30,8 @@ impl UnixMbox {
             .create(false)
             .open(&self.path)
             .with_context(|e| format!("failed to open mbox file {:?}: {}", self.path, e))?;
+
+        file.lock_exclusive()?;
 
         // safety: safe because we locked the file above
         let mmapped_file = unsafe { MboxFile::from_file(&file) }

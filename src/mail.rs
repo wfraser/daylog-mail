@@ -1,6 +1,6 @@
 use failure::{Error, ResultExt};
 use std::ffi::OsStr;
-use std::fs::{self, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -9,6 +9,7 @@ use mbox_reader::MboxFile;
 
 pub trait MailSource {
     fn read<'a>(&'a self) -> Result<Box<(dyn Iterator<Item = Result<Mail, Error>> + 'a)>, Error>;
+    fn truncate(self);
 }
 
 pub struct UnixMbox {
@@ -22,10 +23,20 @@ impl UnixMbox {
 
     pub fn open_for_read(&self) -> Result<OpenedUnixMbox, Error> {
         let dotlock = DotLock::new(&self.path)?;
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(false)
+            .open(&self.path)
+            .with_context(|e| format!("failed to open mbox file {:?}: {}", self.path, e))?;
+
+        // safety: safe because we locked the file above
+        let mmapped_file = unsafe { MboxFile::from_file(&file) }
+            .with_context(|e| format!("unable to open mailbox file {:?}: {}", self.path, e))?;
 
         Ok(OpenedUnixMbox {
-            mmapped_file: MboxFile::from_file(&self.path)
-                .with_context(|e| format!("unable to open mailbox file {:?}: {}", self.path, e))?,
+            file,
+            mmapped_file,
             _dotlock: dotlock,
         })
     }
@@ -72,6 +83,7 @@ impl Drop for DotLock {
 }
 
 pub struct OpenedUnixMbox {
+    file: File,
     mmapped_file: MboxFile,
     _dotlock: DotLock,
 }
@@ -85,6 +97,12 @@ impl MailSource for OpenedUnixMbox {
                     .and_then(Mail::parse)
             })
         ))
+    }
+
+    fn truncate(self) {
+        std::mem::drop(self.mmapped_file);
+        self.file.set_len(0).expect("failed to truncate mbox file");
+        std::mem::drop(self.file);
     }
 }
 

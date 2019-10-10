@@ -1,3 +1,4 @@
+mod db;
 mod ingest;
 mod message_id;
 mod mail;

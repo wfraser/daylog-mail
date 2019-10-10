@@ -9,6 +9,8 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
         .with_context(|e|
             format!("failed to read secret key {:?}: {}", args.common_args.key_path, e))?;
 
+    let mut db = crate::db::Database::open(&args.database_path)?;
+
     let mbox = mail::UnixMbox::open(&args.mbox_path)?;
     let mut num_processed = 0;
     let mut num_actioned = 0;
@@ -29,7 +31,10 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
             }
 
             let body = process_body(&mail.body);
-            println!("body:\n{}", body);
+
+            if args.dry_run {
+                println!("body:\n{}", body);
+            }
 
             for msgid in msgids {
                 let (username, date) = match verify_message_id(&msgid, key_bytes) {
@@ -46,7 +51,10 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
                     }
                 };
 
-                // TODO: stuff
+                if !args.dry_run {
+                    db.add_entry(&username, &date, &body)?;
+                }
+
                 num_actioned += 1;
             }
         }

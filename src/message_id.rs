@@ -1,5 +1,8 @@
 use failure::ResultExt;
 use ring::aead;
+use std::fs::File;
+use std::io::{self, Read};
+use std::path::Path;
 
 const PREFIX: &'static str = "daylog.1";
 
@@ -13,6 +16,13 @@ fn base64_decode(s: &str) -> Result<Vec<u8>, base64::DecodeError> {
 
 fn base64_encode(bytes: &[u8]) -> String {
     base64::encode_config(bytes, base64_config())
+}
+
+pub fn read_secret_key(path: &Path) -> io::Result<[u8; 32]> {
+    let mut key = [0u8; 32];
+    let mut file = File::open(path)?;
+    file.read_exact(&mut key)?;
+    Ok(key)
 }
 
 pub fn is_our_message_id(s: &str) -> bool {

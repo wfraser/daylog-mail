@@ -8,7 +8,13 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
-enum Args {
+struct Args {
+    #[structopt(subcommand)]
+    op: Operation,
+}
+
+#[derive(StructOpt, Debug)]
+enum Operation {
     /// Process incoming mail
     Ingest(IngestArgs),
 
@@ -17,7 +23,18 @@ enum Args {
 }
 
 #[derive(StructOpt, Debug)]
+pub struct CommonArgs {
+    /// Path to the secret key used for generating and reading message IDs.
+    /// Must contain 32 bytes of data.
+    #[structopt(long("key"))]
+    key_path: PathBuf,
+}
+
+#[derive(StructOpt, Debug)]
 pub struct IngestArgs {
+    #[structopt(flatten)]
+    common_args: CommonArgs,
+
     /// path to the Unix mbox file to read emails from
     #[structopt(long)]
     mbox: PathBuf,
@@ -33,6 +50,9 @@ pub struct IngestArgs {
 
 #[derive(StructOpt, Debug)]
 pub struct SendArgs {
+    #[structopt(flatten)]
+    common_args: CommonArgs,
+
     /// Username
     #[structopt(long)]
     username: String,
@@ -50,9 +70,9 @@ fn main() -> Result<(), Error> {
     let args = Args::from_args();
     println!("{:#?}", args);
 
-    match args {
-        Args::Ingest(args) => ingest::ingest(args),
-        Args::Send(args) => send::send(args),
+    match args.op {
+        Operation::Ingest(op) => ingest::ingest(op),
+        Operation::Send(op) => send::send(op),
     }
 }
 

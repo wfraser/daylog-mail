@@ -1,9 +1,11 @@
 use crate::mail::{self, MailSource};
-use crate::message_id::{is_our_message_id, verify_message_id};
+use crate::message_id::{is_our_message_id, read_secret_key, verify_message_id};
 use crate::IngestArgs;
+use failure::ResultExt;
 
 pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
-    let key_bytes = [0u8; 32]; // FIXME!
+    let key_bytes = read_secret_key(&args.common_args.key_path)
+        .context("failed to read secret key")?;
 
     let mbox = mail::UnixMbox::from_path(args.mbox);
     let read = mbox.open_for_read()?;

@@ -14,6 +14,9 @@ pub fn send(args: SendArgs) -> Result<(), failure::Error> {
     let msgid = message_id::gen_message_id(&args.username, &today, key_bytes)
         .with_context(|e| format!("failed to generate message ID: {}", e))?;
 
+    let hostname = hostname::get_hostname()
+        .ok_or_else(|| failure::err_msg("failed to get hostname"))?;
+
     let mut child = Command::new("sendmail")
         .arg("-i")
         .arg("-f")
@@ -27,7 +30,7 @@ pub fn send(args: SendArgs) -> Result<(), failure::Error> {
 
     {
         let stdin = child.stdin.as_mut().expect("failed to get 'sendmail' command stdin");
-        write_email(stdin, &args, &today, &msgid)
+        write_email(stdin, &args, &today, &format!("{}@{}", msgid, hostname))
             .with_context(|e| format!("failed to write email: {}", e))?;
     }
 

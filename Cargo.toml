@@ -12,6 +12,7 @@ chrono = "0.4.9"
 chrono-tz = "0.5.1"
 failure = "0.1.5"
 fs2 = "0.4.3"
+hostname = "0.1.5"
 #mbox-reader = "0.1.0"
 mbox-reader = { git = "https://github.com/wfraser/mbox-reader", branch = "open-file" }
 #mbox-reader = { path = "../ext/mbox-reader" }

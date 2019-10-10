@@ -3,6 +3,18 @@ use ring::aead;
 
 const PREFIX: &'static str = "daylog.1";
 
+fn base64_config() -> base64::Config {
+    base64::Config::new(base64::CharacterSet::UrlSafe, false)
+}
+
+fn base64_decode(s: &str) -> Result<Vec<u8>, base64::DecodeError> {
+    base64::decode_config(s, base64_config())
+}
+
+fn base64_encode(bytes: &[u8]) -> String {
+    base64::encode_config(bytes, base64_config())
+}
+
 pub fn is_our_message_id(s: &str) -> bool {
     s.starts_with(PREFIX)
 }
@@ -16,12 +28,13 @@ pub fn gen_message_id(username: &str, date: &str, key_bytes: [u8; 32]) -> Result
     let mut encrypted = plaintext.into_bytes();
     key.seal_in_place_append_tag(nonce.as_aead(), ring::aead::Aad::from(PREFIX.as_bytes()), &mut encrypted).unwrap();
 
-    Ok(format!("{}.{}.{}", PREFIX, nonce.base64(), base64::encode(&encrypted)))
+    Ok(format!("{}.{}.{}", PREFIX, nonce.base64(), base64_encode(&encrypted)))
 }
 
 pub fn verify_message_id(message_id: &str, key_bytes: [u8; 32]) -> Result<(String, String), failure::Error> {
     let mut parts = message_id.split('.');
     let mut extract = || parts.next().ok_or_else(|| failure::err_msg("not enough parts"));
+
     let ident = extract()?;
     let ver = extract()?;
     let nonce_base64 = extract()?;
@@ -38,7 +51,7 @@ pub fn verify_message_id(message_id: &str, key_bytes: [u8; 32]) -> Result<(Strin
     let nonce = TimeNonce::parse(nonce_base64)
         .context("invalid nonce base64")?;
 
-    let mut encrypted = base64::decode(encrypted_base64)
+    let mut encrypted = base64_decode(encrypted_base64)
         .context("invalid encrypted base64")?;
 
     let key = aead_key(key_bytes);
@@ -93,12 +106,12 @@ impl TimeNonce {
                 break;
             }
         }
-        base64::encode(&bytes[..end])
+        base64_encode(&bytes[..end])
     }
 
     pub fn parse(s: &str) -> Result<Self, failure::Error> {
         use std::convert::TryInto;
-        let mut bytes = base64::decode(s)
+        let mut bytes = base64_decode(s)
             .context("invalid base64 for nonce")?;
         bytes.resize(16, 0);
         let nanos = u128::from_le_bytes((&bytes[..]).try_into().unwrap());

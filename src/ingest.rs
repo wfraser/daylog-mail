@@ -7,11 +7,10 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
     let key_bytes = read_secret_key(&args.common_args.key_path)
         .context("failed to read secret key")?;
 
-    let mbox = mail::UnixMbox::from_path(args.mbox);
-    let read = mbox.open_for_read()?;
+    let mbox = mail::UnixMbox::open(&args.mbox_path)?;
     let mut num_processed = 0;
     let mut num_actioned = 0;
-    for mail_result in read.read()? {
+    for mail_result in mbox.read()? {
         num_processed += 1;
         let mail = mail_result?;
 

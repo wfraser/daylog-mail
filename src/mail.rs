@@ -13,29 +13,23 @@ pub trait MailSource {
     fn truncate(self);
 }
 
-pub struct UnixMbox {
-    path: PathBuf,
-}
+pub struct UnixMbox;
 
 impl UnixMbox {
-    pub fn from_path(path: PathBuf) -> Self {
-        Self { path }
-    }
-
-    pub fn open_for_read(&self) -> Result<OpenedUnixMbox, Error> {
-        let dotlock = DotLock::new(&self.path)?;
+    pub fn open(path: &Path) -> Result<OpenedUnixMbox, Error> {
+        let dotlock = DotLock::new(path)?;
         let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(false)
-            .open(&self.path)
-            .with_context(|e| format!("failed to open mbox file {:?}: {}", self.path, e))?;
+            .open(path)
+            .with_context(|e| format!("failed to open mbox file {:?}: {}", path, e))?;
 
         file.lock_exclusive()?;
 
         // safety: safe because we locked the file above
         let mmapped_file = unsafe { MboxFile::from_file(&file) }
-            .with_context(|e| format!("unable to open mailbox file {:?}: {}", self.path, e))?;
+            .with_context(|e| format!("unable to open mailbox file {:?}: {}", path, e))?;
 
         Ok(OpenedUnixMbox {
             file,

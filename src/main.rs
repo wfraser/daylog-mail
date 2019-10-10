@@ -36,15 +36,15 @@ pub struct IngestArgs {
     common_args: CommonArgs,
 
     /// path to the Unix mbox file to read emails from
-    #[structopt(long)]
-    mbox: PathBuf,
+    #[structopt(long("mbox"))]
+    mbox_path: PathBuf,
 
     /// path to database file
-    #[structopt(long)]
-    database: PathBuf,
+    #[structopt(long("database"))]
+    database_path: PathBuf,
 
     /// show what would be done, but do not make any changes
-    #[structopt(long = "dry-run")]
+    #[structopt(long("dry-run"))]
     dry_run: bool,
 }
 

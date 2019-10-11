@@ -2,6 +2,7 @@ mod db;
 mod ingest;
 mod message_id;
 mod mail;
+mod mbox;
 mod send;
 
 use failure::Error;

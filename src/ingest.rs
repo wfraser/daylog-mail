@@ -1,4 +1,5 @@
-use crate::mail::{self, MailSource};
+use crate::mail::MailSource;
+use crate::mbox::UnixMbox;
 use crate::message_id::{is_our_message_id, read_secret_key, verify_message_id};
 use crate::IngestArgs;
 use failure::ResultExt;
@@ -11,7 +12,7 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
 
     let mut db = crate::db::Database::open(&args.database_path)?;
 
-    let mbox = match mail::UnixMbox::open(&args.mbox_path)? {
+    let mbox = match UnixMbox::open(&args.mbox_path)? {
         Some(mbox) => mbox,
         None => {
             eprintln!("no incoming mail.");

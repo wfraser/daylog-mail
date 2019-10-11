@@ -16,7 +16,7 @@ pub trait MailSource {
 pub struct UnixMbox;
 
 impl UnixMbox {
-    pub fn open(path: &Path) -> Result<OpenedUnixMbox, Error> {
+    pub fn open(path: &Path) -> Result<Option<OpenedUnixMbox>, Error> {
         let dotlock = DotLock::new(path)
             .with_context(|e| format!("failed to create .lock file: {}", e))?;
 
@@ -30,15 +30,22 @@ impl UnixMbox {
         file.lock_exclusive()
             .with_context(|e| format!("failed to lock mbox file {:?} for exclusive access: {}", path, e))?;
 
+        if file.metadata()
+            .context("unable to get mbox file size")?
+            .len() == 0
+        {
+            return Ok(None);
+        }
+
         // safety: safe because we locked the file above
         let mmapped_file = unsafe { MboxFile::from_file(&file) }
             .with_context(|e| format!("unable to open mailbox file {:?}: {}", path, e))?;
 
-        Ok(OpenedUnixMbox {
+        Ok(Some(OpenedUnixMbox {
             file,
             mmapped_file,
             _dotlock: dotlock,
-        })
+        }))
     }
 }
 

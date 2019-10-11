@@ -11,7 +11,14 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
 
     let mut db = crate::db::Database::open(&args.database_path)?;
 
-    let mbox = mail::UnixMbox::open(&args.mbox_path)?;
+    let mbox = match mail::UnixMbox::open(&args.mbox_path)? {
+        Some(mbox) => mbox,
+        None => {
+            eprintln!("no incoming mail.");
+            return Ok(());
+        }
+    };
+
     let mut num_processed = 0;
     let mut num_actioned = 0;
     for mail_result in mbox.read()? {

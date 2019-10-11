@@ -44,6 +44,7 @@ impl UnixMbox {
         Ok(Some(OpenedUnixMbox {
             file,
             mmapped_file,
+            path: path.to_owned(),
             _dotlock: dotlock,
         }))
     }
@@ -92,6 +93,7 @@ impl Drop for DotLock {
 pub struct OpenedUnixMbox {
     file: File,
     mmapped_file: MboxFile,
+    path: PathBuf,
     _dotlock: DotLock,
 }
 
@@ -108,6 +110,16 @@ impl MailSource for OpenedUnixMbox {
 
     fn truncate(self) {
         std::mem::drop(self.mmapped_file);
+        {
+            // During development, let's save copies of the mailboxes.
+            let mut copy = self.path.clone().into_os_string();
+            let seconds = std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .map(|dur| dur.as_secs())
+                .unwrap_or(0);
+            copy.push(&format!("_{}.bak", seconds));
+            fs::copy(&self.path, &copy).expect("failed to backup mbox file");
+        }
         self.file.set_len(0).expect("failed to truncate mbox file");
         std::mem::drop(self.file);
     }

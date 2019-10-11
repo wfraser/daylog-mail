@@ -43,6 +43,7 @@ pub fn send(args: SendArgs) -> Result<(), failure::Error> {
     Ok(())
 }
 
+#[allow(clippy::write_with_newline)]
 fn write_email(mut w: impl Write, args: &SendArgs, today: &str, msgid: &str) -> io::Result<()> {
     write!(w, "Date: {}\r\n", chrono::Utc::now().to_rfc2822())?;
     write!(w, "Subject: Daylog for {}\r\n", today)?;

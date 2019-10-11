@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
 
-const PREFIX: &'static str = "daylog.1";
+const PREFIX: &str = "daylog.1";
 
 fn base64_config() -> base64::Config {
     base64::Config::new(base64::CharacterSet::UrlSafe, false)

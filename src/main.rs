@@ -69,6 +69,10 @@ pub struct SendArgs {
     /// The value for the From: address on outgoing mail
     #[structopt(long("return-addr"))]
     return_addr: String,
+
+    /// Send email for the given date instead of today.
+    #[structopt(long("date"))]
+    date_override: Option<String>
 }
 
 fn main() -> Result<(), Error> {

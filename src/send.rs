@@ -9,7 +9,10 @@ pub fn send(args: SendArgs) -> Result<(), failure::Error> {
         .with_context(|e|
             format!("failed to read secret key {:?}: {}", args.common_args.key_path, e))?;
 
-    let today = todays_date(&args.timezone);
+    let today = match args.date_override {
+        Some(ref date) => date.clone(),
+        None => todays_date(&args.timezone),
+    };
 
     let msgid = message_id::gen_message_id(&args.username, &today, key_bytes)
         .with_context(|e| format!("failed to generate message ID: {}", e))?;

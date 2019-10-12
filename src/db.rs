@@ -46,7 +46,7 @@ impl Database {
             let (id, mut update_body): (i64, String) = tx.query_row_named(
                 "SELECT id, body FROM entries WHERE username = :username AND date = :date",
                 rusqlite::named_params!{":username": username, ":date": date},
-                |row| Ok((row.get(1)?, row.get(0)?)))?;
+                |row| Ok((row.get(0)?, row.get(1)?)))?;
             eprintln!("updating existing row {}: {}/{}", id, username, date);
             update_body.push('\n');
             update_body +=  body;

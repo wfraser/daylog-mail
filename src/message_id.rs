@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use failure::ResultExt;
 use ring::aead;
 use std::fs::File;
@@ -29,8 +30,8 @@ pub fn is_our_message_id(s: &str) -> bool {
     s.starts_with(PREFIX)
 }
 
-pub fn gen_message_id(username: &str, date: &str, key_bytes: [u8; 32]) -> Result<String, failure::Error> {
-    let plaintext = format!("{}.{}", username, date);
+pub fn gen_message_id(username: &str, date: NaiveDate, key_bytes: [u8; 32]) -> Result<String, failure::Error> {
+    let plaintext = format!("{}.{}", username, date.format("%Y-%m-%d"));
 
     let key = aead_key(key_bytes);
     let nonce = TimeNonce::new();

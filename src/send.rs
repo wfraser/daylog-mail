@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use crate::{SendArgs, todays_date};
 use crate::message_id::{self, read_secret_key};
 use failure::ResultExt;
@@ -9,12 +10,15 @@ pub fn send(args: SendArgs) -> Result<(), failure::Error> {
         .with_context(|e|
             format!("failed to read secret key {:?}: {}", args.common_args.key_path, e))?;
 
-    let today = match args.date_override {
-        Some(ref date) => date.clone(),
+    let date = match args.date_override {
+        Some(ref date) => {
+            NaiveDate::parse_from_str(date, "%Y-%m-%d")
+                .with_context(|e| format!("Invalid date specified ({:?}): {}", date, e))?
+        }
         None => todays_date(&args.timezone),
     };
 
-    let msgid = message_id::gen_message_id(&args.username, &today, key_bytes)
+    let msgid = message_id::gen_message_id(&args.username, date, key_bytes)
         .with_context(|e| format!("failed to generate message ID: {}", e))?;
 
     let hostname = hostname::get_hostname()
@@ -33,7 +37,7 @@ pub fn send(args: SendArgs) -> Result<(), failure::Error> {
 
     {
         let stdin = child.stdin.as_mut().expect("failed to get 'sendmail' command stdin");
-        write_email(stdin, &args, &today, &format!("{}@{}", msgid, hostname))
+        write_email(stdin, &args, date, &format!("{}@{}", msgid, hostname))
             .with_context(|e| format!("failed to write email: {}", e))?;
     }
 
@@ -44,14 +48,14 @@ pub fn send(args: SendArgs) -> Result<(), failure::Error> {
 }
 
 #[allow(clippy::write_with_newline)]
-fn write_email(mut w: impl Write, args: &SendArgs, today: &str, msgid: &str) -> io::Result<()> {
+fn write_email(mut w: impl Write, args: &SendArgs, date: NaiveDate, msgid: &str) -> io::Result<()> {
     write!(w, "Date: {}\r\n", chrono::Utc::now().to_rfc2822())?;
-    write!(w, "Subject: Daylog for {}\r\n", today)?;
+    write!(w, "Subject: Daylog for {}\r\n", date.format("%Y-%m-%d"))?;
     write!(w, "Sender: <{}>\r\n", args.return_addr)?;
     write!(w, "To: <{}>\r\n", args.email)?;
     write!(w, "Message-ID: <{}>\r\n", msgid)?;
     write!(w, "\r\n")?;
-    write!(w, "What'd you do today, {}?\r\n", today)?;
+    write!(w, "What'd you do today, {}?\r\n", date.format("%A, %B %e, $Y"))?; // Sunday, July 8, 2001
     write!(w, "\r\n")?;
     write!(w, "-- \r\n")?;
     write!(w, "sent by daylog\r\n")?;

@@ -5,6 +5,7 @@ mod mail;
 mod maildir;
 mod send;
 
+use chrono::NaiveDate;
 use failure::Error;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -93,9 +94,9 @@ fn main() -> Result<(), Error> {
     }
 }
 
-pub fn todays_date<Tz>(tz: &Tz) -> String
+pub fn todays_date<Tz>(tz: &Tz) -> NaiveDate
     where Tz: chrono::TimeZone,
           Tz::Offset: std::fmt::Display,
 {
-    chrono::Utc::now().with_timezone(tz).date().format("%Y-%m-%d").to_string()
+    chrono::Utc::now().with_timezone(tz).date().naive_local()
 }

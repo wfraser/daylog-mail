@@ -3,7 +3,7 @@ mod ingest;
 mod message_id;
 mod mail;
 mod maildir;
-mod mbox;
+//mod mbox;
 mod send;
 
 use failure::Error;

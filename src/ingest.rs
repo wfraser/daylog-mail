@@ -1,5 +1,6 @@
-use crate::mail::MailSource;
-use crate::mbox::UnixMbox;
+use crate::mail::{MailProcessAction, MailSource};
+use crate::maildir::DaylogMaildir;
+//use crate::mbox::UnixMbox;
 use crate::message_id::{is_our_message_id, read_secret_key, verify_message_id};
 use crate::{MailSourceLocation, IngestArgs};
 use failure::ResultExt;
@@ -12,27 +13,23 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
 
     let mut db = crate::db::Database::open(&args.database_path)?;
 
-    let source: Box<dyn MailSource> = match args.source {
-        MailSourceLocation::Mbox { ref path } => {
-            match UnixMbox::open(path)? {
+    let mut source: Box<dyn MailSource> = match args.source {
+        MailSourceLocation::Mbox { path: _ } => {
+            /*match UnixMbox::open(path)? {
                 Some(mbox) => Box::new(mbox),
                 None => {
                     eprintln!("no incoming mail.");
                     return Ok(());
                 }
-            }
+            }*/
+            unimplemented!("mbox sux");
         }
         MailSourceLocation::Maildir { ref path } => {
-            unimplemented!("maildir path {:?}", path);
+            Box::new(DaylogMaildir::open(path))
         }
     };
 
-    let mut num_processed = 0;
-    let mut num_actioned = 0;
-    for mail_result in source.read()? {
-        num_processed += 1;
-        let mail = mail_result?;
-
+    let stats = source.read(Box::new(move |mail| {
         let mut msgids = vec![];
         for msgid in mail.reply_to {
             if is_our_message_id(&msgid) {
@@ -40,46 +37,59 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
             }
         }
 
-        if !msgids.is_empty() {
-            if args.dry_run {
-                println!("Message {:?} is interesting", mail.msgid);
-            }
+        if msgids.is_empty() {
+            return if args.dry_run {
+                MailProcessAction::LeaveUnread
+            } else {
+                MailProcessAction::Keep
+            };
+        }
 
-            let body = process_body(&mail.body);
+        if args.dry_run {
+            println!("Message {:?} is interesting", mail.msgid);
+        }
 
-            if args.dry_run {
-                println!("body:\n{}", body);
-            }
+        let body = process_body(&mail.body);
 
-            for msgid in msgids {
-                let (username, date) = match verify_message_id(&msgid, key_bytes) {
-                    Ok((username, date)) => {
-                        if args.dry_run {
-                            println!("{:?} -> ({:?}, {:?})", msgid, username, date);
-                        }
-                        (username, date)
+        if args.dry_run {
+            println!("body:\n{}", body);
+        }
+
+        for msgid in msgids {
+            let (username, date) = match verify_message_id(&msgid, key_bytes) {
+                Ok((username, date)) => {
+                    if args.dry_run {
+                        println!("{:?} -> ({:?}, {:?})", msgid, username, date);
                     }
-                    Err(e) => {
-                        println!("Error: message {:?} replies to {:?}, but: {}",
-                                 mail.msgid, msgid, e);
-                        continue;
-                    }
-                };
-
-                if !args.dry_run {
-                    db.add_entry(&username, &date, &body)?;
+                    (username, date)
                 }
+                Err(e) => {
+                    println!("Error: message {:?} replies to {:?}, but: {}",
+                             mail.msgid, msgid, e);
+                    return if args.dry_run {
+                        MailProcessAction::LeaveUnread
+                    } else {
+                        MailProcessAction::Keep
+                    };
+                }
+            };
 
-                num_actioned += 1;
+            if !args.dry_run {
+                if let Err(e) = db.add_entry(&username, &date, &body) {
+                    eprintln!("Error adding to database: {:?}", e);
+                    return MailProcessAction::LeaveUnread;
+                }
             }
         }
-    }
 
-    println!("{} mails read, {} actioned", num_processed, num_actioned);
+        if args.dry_run {
+            MailProcessAction::LeaveUnread
+        } else {
+            MailProcessAction::Remove
+        }
+    }))?;
 
-    if !args.dry_run {
-        source.truncate();
-    }
+    println!("{:#?}", stats);
 
     Ok(())
 }

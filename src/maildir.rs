@@ -44,7 +44,20 @@ impl MailSource for DaylogMaildir {
             match action {
                 MailProcessAction::Remove => {
                     let path = entry.path();
-                    fs::remove_file(path)
+
+                    // for now, let's save them as seen
+                    // TODO: this should probably be a feature in the maildir crate.
+                    let mut filename = path.file_name().unwrap().to_owned();
+                    filename.push(":2,S");
+
+                    let mut new = path.to_owned();
+                    new.pop();
+                    new.pop();
+                    new.push("cur");
+                    new.push(filename);
+
+                    //fs::remove_file(path)
+                    fs::rename(path, &new)
                         .with_context(|e| format!("failed to remove message {:?}: {}", path, e))?;
                     stats.num_removed += 1;
                 }

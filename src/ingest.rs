@@ -85,7 +85,7 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
 }
 
 fn process_body(input: &str) -> String {
-    let quote_begin = Regex::new("\nOn (Mon|Tue|Wed|Thu|Fri|Sat|Sun), (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [^>]+([^\n]>)? wrote:\n>").unwrap();
+    let quote_begin = Regex::new("\nOn (Mon|Tue|Wed|Thu|Fri|Sat|Sun), (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [^>]+([^\n]>)?( |\n)wrote:\n\n?>").unwrap();
     let signature = Regex::new("(?s)\n-- \n.*$").unwrap();
 
     signature.replace_all(&quote_begin.replace_all(input, "\n>"), "")

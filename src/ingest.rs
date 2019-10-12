@@ -1,6 +1,5 @@
 use crate::mail::{MailProcessAction, MailSource};
 use crate::maildir::DaylogMaildir;
-//use crate::mbox::UnixMbox;
 use crate::message_id::{is_our_message_id, read_secret_key, verify_message_id};
 use crate::{MailSourceLocation, IngestArgs};
 use failure::ResultExt;
@@ -14,16 +13,6 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
     let mut db = crate::db::Database::open(&args.database_path)?;
 
     let mut source: Box<dyn MailSource> = match args.source {
-        MailSourceLocation::Mbox { path: _ } => {
-            /*match UnixMbox::open(path)? {
-                Some(mbox) => Box::new(mbox),
-                None => {
-                    eprintln!("no incoming mail.");
-                    return Ok(());
-                }
-            }*/
-            unimplemented!("mbox sux");
-        }
         MailSourceLocation::Maildir { ref path } => {
             Box::new(DaylogMaildir::open(path))
         }

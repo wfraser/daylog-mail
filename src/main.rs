@@ -3,7 +3,6 @@ mod ingest;
 mod message_id;
 mod mail;
 mod maildir;
-//mod mbox;
 mod send;
 
 use failure::Error;
@@ -52,11 +51,10 @@ pub struct IngestArgs {
 
 #[derive(StructOpt, Debug)]
 pub enum MailSourceLocation {
-    /// Unix mbox file path
-    Mbox { path: PathBuf },
-
     /// Maildir path
     Maildir{ path: PathBuf },
+
+    // and maybe other sources in the future?
 }
 
 #[derive(StructOpt, Debug)]

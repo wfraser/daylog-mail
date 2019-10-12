@@ -36,12 +36,6 @@ pub struct Mail {
 }
 
 impl Mail {
-    pub fn parse_raw(raw: &[u8]) -> Result<Self, Error> {
-        let parsed = mailparse::parse_mail(raw)
-            .context("failed to parse email")?;
-        Self::parse(parsed)
-    }
-
     pub fn parse(parsed: ParsedMail) -> Result<Self, Error> {
         let msgid = parsed.headers.get_first_value("message-id")
             .context("message has invalid Message-ID")?

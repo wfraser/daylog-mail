@@ -55,7 +55,7 @@ fn write_email(mut w: impl Write, args: &SendArgs, date: NaiveDate, msgid: &str)
     write!(w, "To: <{}>\r\n", args.email)?;
     write!(w, "Message-ID: <{}>\r\n", msgid)?;
     write!(w, "\r\n")?;
-    write!(w, "What'd you do today, {}?\r\n", date.format("%A, %B %e, $Y"))?; // Sunday, July 8, 2001
+    write!(w, "What'd you do today, {}?\r\n", date.format("%A, %B %e, %Y"))?; // Sunday, July 8, 2001
     write!(w, "\r\n")?;
     write!(w, "-- \r\n")?;
     write!(w, "sent by daylog\r\n")?;

@@ -1,7 +1,7 @@
 use crate::mail::MailSource;
 use crate::mbox::UnixMbox;
 use crate::message_id::{is_our_message_id, read_secret_key, verify_message_id};
-use crate::IngestArgs;
+use crate::{MailSourceLocation, IngestArgs};
 use failure::ResultExt;
 use regex::Regex;
 
@@ -12,17 +12,24 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
 
     let mut db = crate::db::Database::open(&args.database_path)?;
 
-    let mbox = match UnixMbox::open(&args.mbox_path)? {
-        Some(mbox) => mbox,
-        None => {
-            eprintln!("no incoming mail.");
-            return Ok(());
+    let source: Box<dyn MailSource> = match args.source {
+        MailSourceLocation::Mbox { ref path } => {
+            match UnixMbox::open(path)? {
+                Some(mbox) => Box::new(mbox),
+                None => {
+                    eprintln!("no incoming mail.");
+                    return Ok(());
+                }
+            }
+        }
+        MailSourceLocation::Maildir { ref path } => {
+            unimplemented!("maildir path {:?}", path);
         }
     };
 
     let mut num_processed = 0;
     let mut num_actioned = 0;
-    for mail_result in mbox.read()? {
+    for mail_result in source.read()? {
         num_processed += 1;
         let mail = mail_result?;
 
@@ -71,7 +78,7 @@ pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
     println!("{} mails read, {} actioned", num_processed, num_actioned);
 
     if !args.dry_run {
-        mbox.truncate();
+        source.truncate();
     }
 
     Ok(())

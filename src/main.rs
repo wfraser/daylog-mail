@@ -2,6 +2,7 @@ mod db;
 mod ingest;
 mod message_id;
 mod mail;
+mod maildir;
 mod mbox;
 mod send;
 
@@ -37,9 +38,8 @@ pub struct IngestArgs {
     #[structopt(flatten)]
     common_args: CommonArgs,
 
-    /// path to the Unix mbox file to read emails from
-    #[structopt(long("mbox"))]
-    mbox_path: PathBuf,
+    #[structopt(flatten)]
+    source: MailSourceLocation,
 
     /// path to database file
     #[structopt(long("database"))]
@@ -48,6 +48,15 @@ pub struct IngestArgs {
     /// show what would be done, but do not make any changes
     #[structopt(long("dry-run"))]
     dry_run: bool,
+}
+
+#[derive(StructOpt, Debug)]
+pub enum MailSourceLocation {
+    /// Unix mbox file path
+    Mbox { path: PathBuf },
+
+    /// Maildir path
+    Maildir{ path: PathBuf },
 }
 
 #[derive(StructOpt, Debug)]

@@ -98,12 +98,12 @@ impl MailSource for OpenedUnixMbox {
             .map(|entry| {
                 entry.message()
                     .ok_or_else(|| failure::err_msg("mbox-reader returned empty message, why?"))
-                    .and_then(Mail::parse)
+                    .and_then(Mail::parse_raw)
             })
         ))
     }
 
-    fn truncate(self) {
+    fn truncate(self: Box<Self>) {
         std::mem::drop(self.mmapped_file);
         {
             // During development, let's save copies of the mailboxes.

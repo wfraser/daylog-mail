@@ -1,9 +1,9 @@
 use failure::{Error, ResultExt};
-use mailparse::MailHeaderMap;
+use mailparse::{MailHeaderMap, ParsedMail};
 
 pub trait MailSource {
     fn read<'a>(&'a self) -> Result<Box<(dyn Iterator<Item = Result<Mail, Error>> + 'a)>, Error>;
-    fn truncate(self);
+    fn truncate(self: Box<Self>);
 }
 
 /// An email message plucked from a MailSource.
@@ -18,10 +18,13 @@ pub struct Mail {
 }
 
 impl Mail {
-    pub fn parse(raw: &[u8]) -> Result<Self, Error> {
+    pub fn parse_raw(raw: &[u8]) -> Result<Self, Error> {
         let parsed = mailparse::parse_mail(raw)
             .context("failed to parse email")?;
+        Self::parse(&parsed)
+    }
 
+    pub fn parse(parsed: &ParsedMail) -> Result<Self, Error> {
         let msgid = parsed.headers.get_first_value("message-id")
             .context("message has invalid Message-ID")?
             .map(trim_msgid)
@@ -41,7 +44,7 @@ impl Mail {
             // concatenate them together.
             let mut body = String::new();
             let mut found_something = false;
-            for part in parsed.subparts {
+            for part in &parsed.subparts {
                 let disposition = part.get_content_disposition()
                     .context("unable to parse context disposition for a message subpart")?
                     .disposition;

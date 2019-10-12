@@ -51,7 +51,7 @@ pub fn send(args: SendArgs) -> Result<(), failure::Error> {
 fn write_email(mut w: impl Write, args: &SendArgs, date: NaiveDate, msgid: &str) -> io::Result<()> {
     write!(w, "Date: {}\r\n", chrono::Utc::now().to_rfc2822())?;
     write!(w, "Subject: Daylog for {}\r\n", date.format("%Y-%m-%d"))?;
-    write!(w, "Sender: <{}>\r\n", args.return_addr)?;
+    write!(w, "From: Daylog <{}>\r\n", args.return_addr)?;
     write!(w, "To: <{}>\r\n", args.email)?;
     write!(w, "Message-ID: <{}>\r\n", msgid)?;
     write!(w, "\r\n")?;

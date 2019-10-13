@@ -1,0 +1,26 @@
+#
+# Example Daylog configuration file.
+#
+
+# Note: if any relative paths are given in this file, they are assumed to be relative to this file.
+
+# Path to a SQLite3 database for Daylog to use.
+# If it does not exist, it will be created and initialized with empty tables.
+database: daylog.db
+
+# A secret key used to generate and verify Message-ID headers for emails.
+# Must point to a file containing 32 bits of data.
+# A good way to initialize this is by running:
+#   $ head -c32 /dev/random > key_file
+secret_key: key_file
+
+# Email address to send emails as. Must be able to receive email in return.
+return_addr: daylog@example.com
+
+# How Daylog should receive incoming mail. Currently the only available method is 'maildir'.
+incoming_mail:
+    # See https://en.wikipedia.org/wiki/Maildir
+    # Postfix can be configured to deliver to a maildir by specifying a path ending in a slash.
+    maildir:
+        # Path to the root of the maildir.
+        path: /var/spool/daylog/incoming-maildir

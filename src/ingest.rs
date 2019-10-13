@@ -1,19 +1,20 @@
+use crate::config::{Config, IncomingMailConfig};
 use crate::mail::{MailProcessAction, MailSource};
 use crate::maildir::DaylogMaildir;
 use crate::message_id::{is_our_message_id, read_secret_key, verify_message_id};
-use crate::{MailSourceLocation, IngestArgs};
+use crate::IngestArgs;
 use failure::ResultExt;
 use regex::Regex;
 
-pub fn ingest(args: IngestArgs) -> Result<(), failure::Error> {
-    let key_bytes = read_secret_key(&args.common_args.key_path)
+pub fn ingest(config: Config, args: IngestArgs) -> Result<(), failure::Error> {
+    let key_bytes = read_secret_key(&config.secret_key_path)
         .with_context(|e|
-            format!("failed to read secret key {:?}: {}", args.common_args.key_path, e))?;
+            format!("failed to read secret key {:?}: {}", config.secret_key_path, e))?;
 
-    let mut db = crate::db::Database::open(&args.database_path)?;
+    let mut db = crate::db::Database::open(&config.database_path)?;
 
-    let mut source: Box<dyn MailSource> = match args.source {
-        MailSourceLocation::Maildir { ref path } => {
+    let mut source: Box<dyn MailSource> = match config.incoming_mail {
+        IncomingMailConfig::Maildir { ref path } => {
             Box::new(DaylogMaildir::open(path))
         }
     };

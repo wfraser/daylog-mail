@@ -1,14 +1,15 @@
 use chrono::NaiveDate;
 use crate::{SendArgs, todays_date};
+use crate::config::Config;
 use crate::message_id::{self, read_secret_key};
 use failure::ResultExt;
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
 
-pub fn send(args: SendArgs) -> Result<(), failure::Error> {
-    let key_bytes = read_secret_key(&args.common_args.key_path)
+pub fn send(config: Config, args: SendArgs) -> Result<(), failure::Error> {
+    let key_bytes = read_secret_key(&config.secret_key_path)
         .with_context(|e|
-            format!("failed to read secret key {:?}: {}", args.common_args.key_path, e))?;
+            format!("failed to read secret key {:?}: {}", config.secret_key_path, e))?;
 
     let date = match args.date_override {
         Some(ref date) => {
@@ -27,7 +28,7 @@ pub fn send(args: SendArgs) -> Result<(), failure::Error> {
     let mut child = Command::new("sendmail")
         .arg("-i")
         .arg("-f")
-        .arg(&args.return_addr)
+        .arg(&config.return_addr)
         .arg(&args.email)
         .stdin(Stdio::piped())
         .stdout(Stdio::inherit())
@@ -37,7 +38,7 @@ pub fn send(args: SendArgs) -> Result<(), failure::Error> {
 
     {
         let stdin = child.stdin.as_mut().expect("failed to get 'sendmail' command stdin");
-        write_email(stdin, &args, date, &format!("{}@{}", msgid, hostname))
+        write_email(stdin, &config, &args, date, &format!("{}@{}", msgid, hostname))
             .with_context(|e| format!("failed to write email: {}", e))?;
     }
 
@@ -48,10 +49,10 @@ pub fn send(args: SendArgs) -> Result<(), failure::Error> {
 }
 
 #[allow(clippy::write_with_newline)]
-fn write_email(mut w: impl Write, args: &SendArgs, date: NaiveDate, msgid: &str) -> io::Result<()> {
+fn write_email(mut w: impl Write, config: &Config, args: &SendArgs, date: NaiveDate, msgid: &str) -> io::Result<()> {
     write!(w, "Date: {}\r\n", chrono::Utc::now().to_rfc2822())?;
     write!(w, "Subject: Daylog for {}\r\n", date.format("%Y-%m-%d"))?;
-    write!(w, "From: Daylog <{}>\r\n", args.return_addr)?;
+    write!(w, "From: Daylog <{}>\r\n", config.return_addr)?;
     write!(w, "To: <{}>\r\n", args.email)?;
     write!(w, "Message-ID: <{}>\r\n", msgid)?;
     write!(w, "\r\n")?;

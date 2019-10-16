@@ -1,14 +1,19 @@
+#[macro_use] extern crate log;
+
 mod config;
 mod db;
 mod ingest;
 mod message_id;
 mod mail;
 mod maildir;
+mod named_pipe;
+mod run;
 mod send;
 
 use chrono::NaiveDate;
 use crate::config::Config;
 use failure::Error;
+use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -18,6 +23,9 @@ struct Args {
 
     #[structopt(subcommand)]
     op: Operation,
+
+    #[structopt(parse(from_occurrences), short("v"), long)]
+    verbose: usize,
 }
 
 #[derive(StructOpt, Debug)]
@@ -27,6 +35,17 @@ enum Operation {
 
     /// Send a user their daily email.
     Send(SendArgs),
+
+    /// Run as a service, blocking indefinitely. Send all users their daily mail at the
+    /// pre-configured time, and process incoming mail periodically.
+    Run(RunArgs),
+
+    /// Trigger any running service to reload its configuration. This command blocks until the
+    /// service has finished relaoding.
+    Reload,
+
+    /// For development only.
+    Test,
 }
 
 #[derive(StructOpt, Debug)]
@@ -55,13 +74,57 @@ pub struct SendArgs {
     date_override: Option<String>
 }
 
+#[derive(StructOpt, Debug)]
+pub struct RunArgs {
+    /// Path to a file that can be used to communicate with the running service.
+    #[structopt(long("control"))]
+    control_path: PathBuf,
+
+    /// log what would be done, but do not make any changes
+    #[structopt(long("dry-run"))]
+    dry_run: bool,
+}
+
+#[derive(StructOpt, Debug)]
+pub struct ReloadArgs {
+    /// Path to a control file in use by a running daylog instance.
+    /// See the `--control` flag to the `run` operation.
+    /// See `daylog run --help`
+    #[structopt(long("control"))]
+    control_path: PathBuf,
+}
+
 fn main() -> Result<(), Error> {
     let args = Args::from_args();
-    println!("{:#?}", args);
+
+    stderrlog::new()
+        .module(module_path!())
+        .verbosity(args.verbose)
+        .init()?;
+
+    debug!("{:#?}", args);
 
     match args.op {
         Operation::Ingest(op) => ingest::ingest(args.config, op),
         Operation::Send(op) => send::send(args.config, op),
+        Operation::Run(op) => run::run(args.config, op),
+        Operation::Reload => unimplemented!("reload operation"),
+        Operation::Test => {
+            let now = chrono::Utc::now().time();
+            println!("right now it is {}", now.format(db::TIME_FORMAT).to_string());
+
+            let db = db::Database::open(&args.config.database_path)?;
+            if let Some((time, users)) = db.get_users_to_send()?.next_from_time(now)? {
+                println!("Sleep until {:?}", time);
+                println!("Then send to:");
+                for user in users {
+                    println!("{:?}", user);
+                }
+            } else {
+                println!("Nobody to send to! Sleep until midnight and check again.");
+            }
+            Ok(())
+        }
     }
 }
 

@@ -39,10 +39,7 @@ impl Database {
                 ":body": body,
             });
 
-        if let Err(rusqlite::Error::SqliteFailure(rusqlite::ffi::Error {
-            code: rusqlite::ErrorCode::ConstraintViolation,
-            extended_code: 2067, // SQLITE_CONSTRAINT_UNIQUE
-        }, _msg)) = insert_result {
+        if insert_result.is_unique_constraint_error() {
             let (id, mut update_body): (i64, String) = tx.query_row_named(
                 "SELECT id, body FROM entries WHERE username = :username AND date = :date",
                 rusqlite::named_params!{":username": username, ":date": date},
@@ -60,5 +57,24 @@ impl Database {
 
         tx.commit().context("failed to commit db transaction")?;
         Ok(())
+    }
+}
+
+trait RusqliteResultExt {
+    fn is_unique_constraint_error(&self) -> bool;
+}
+
+impl<T> RusqliteResultExt for Result<T, rusqlite::Error> {
+    fn is_unique_constraint_error(&self) -> bool {
+        match self {
+            Err(rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error {
+                        code: rusqlite::ErrorCode::ConstraintViolation,
+                        extended_code: 2067, // SQLITE_CONSTRAINT_UNIQUE
+                    },
+                    ..
+            )) => true,
+            _ => false,
+        }
     }
 }

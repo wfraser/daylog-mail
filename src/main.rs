@@ -9,6 +9,7 @@ mod maildir;
 mod named_pipe;
 mod run;
 mod send;
+mod time;
 
 use chrono::NaiveDate;
 use crate::config::Config;
@@ -106,11 +107,12 @@ fn main() -> Result<(), Error> {
         Operation::Run(op) => run::run(args.config, op),
         Operation::Reload => unimplemented!("reload operation"),
         Operation::Test => {
-            let now = chrono::Utc::now().time();
+            /*
+            let now = time::DaylogTime::now();
             println!("right now it is {}", now.format(db::TIME_FORMAT).to_string());
 
             let db = db::Database::open(&args.config.database_path)?;
-            if let Some((time, users)) = db.get_users_to_send()?.next_from_time(now)? {
+            if let Some((time, users)) = db.get_users_to_send()?.next_from_time(&now)? {
                 println!("Sleep until {:?}", time);
                 println!("Then send to:");
                 for user in users {
@@ -119,6 +121,7 @@ fn main() -> Result<(), Error> {
             } else {
                 println!("Nobody to send to! Sleep until midnight and check again.");
             }
+            */
             Ok(())
         }
     }

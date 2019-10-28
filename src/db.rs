@@ -1,11 +1,9 @@
-use chrono::NaiveTime;
+use crate::time::DaylogTime;
 use failure::ResultExt;
 use rusqlite::{named_params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_rusqlite::{columns_from_statement, from_row_with_columns};
 use std::path::Path;
-
-pub(crate) const TIME_FORMAT: &str = "%H:%M";
 
 pub struct Database {
     db: rusqlite::Connection,
@@ -82,17 +80,17 @@ impl Database {
         Ok(())
     }
 
-    pub fn get_next_send_time(&self, from_time: NaiveTime) -> Result<Option<NaiveTime>, failure::Error> {
+    pub fn get_next_send_time(&self, from_time: DaylogTime) -> Result<Option<DaylogTime>, failure::Error> {
         let next_time: Option<String> = self.db.query_row_named(
             "SELECT email_time_utc FROM users WHERE email_time_utc >= :from_time ORDER BY email_time_utc ASC LIMIT 1",
-            named_params!{ ":from_time": from_time.format(TIME_FORMAT).to_string() },
+            named_params!{ ":from_time": from_time.format() },
             |row| row.get(0),
             )
             .optional()
             .with_context(|e| format!("failed to query next email send time from database: {}", e))?;
         match next_time {
             Some(ref time) => {
-                let parsed_time = NaiveTime::parse_from_str(time, TIME_FORMAT)
+                let parsed_time = DaylogTime::parse(time)
                     .with_context(|e| format!("bad time from the database: {:?} because {}", time, e))?;
                 Ok(Some(parsed_time))
             }
@@ -114,14 +112,14 @@ pub struct UsersBySendTimeQuery<'db> {
 }
 
 impl<'db> UsersBySendTimeQuery<'db> {
-    pub fn for_time(&mut self, time: NaiveTime) -> Result<UsersQueryResult<'_>, failure::Error> {
+    pub fn for_time(&mut self, time: DaylogTime) -> Result<UsersQueryResult<'_>, failure::Error> {
         let rows = self.stmt.query_named(
-            named_params!{ ":time": time.format(TIME_FORMAT).to_string() },
+            named_params!{ ":time": time.format() },
             )?;
         Ok(UsersQueryResult { rows, columns: &self.columns })
     }
 
-    pub fn next_from_time(&mut self, curr_time: NaiveTime) -> Result<Option<(NaiveTime, UsersQueryResult<'_>)>, failure::Error> {
+    pub fn next_from_time(&mut self, curr_time: DaylogTime) -> Result<Option<(DaylogTime, UsersQueryResult<'_>)>, failure::Error> {
         match self.db.get_next_send_time(curr_time)? {
             Some(time) => {
                 Ok(Some((time, self.for_time(time)?)))

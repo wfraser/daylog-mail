@@ -1,7 +1,7 @@
-use chrono::{Utc, NaiveTime};
 use crate::{Config, RunArgs};
 use crate::db::Database;
 use crate::named_pipe::NamedPipe;
+use crate::time::DaylogTime;
 use failure::ResultExt;
 use nix::poll::{poll, PollFd, PollFlags};
 use std::io::{self, Read};
@@ -28,12 +28,18 @@ enum SleepResult {
     FdReadable,
 }
 
-fn sleep_until(time: NaiveTime, fd: &impl AsRawFd) -> io::Result<SleepResult> {
+fn sleep_until(time: DaylogTime, fd: &impl AsRawFd) -> io::Result<SleepResult> {
     let pollfd = PollFd::new(fd.as_raw_fd(), PollFlags::POLLIN);
     loop {
-        let now = Utc::now().time();
-        let sleep_duration = now - time;
+        let now = chrono::Utc::now().time();
+        debug!("now it is {}", now.format("%H:%M:%S"));
+        let sleep_duration = time.duration_until(now);
         let sleep_duration_millis = sleep_duration.num_milliseconds() as i32;
+        if sleep_duration_millis < 0 {
+            warn!("sleep duration is negative: {:?}", sleep_duration); // means we're not keeping up
+            return Ok(SleepResult::Completed);
+        }
+        debug!("sleeping for {:?}", sleep_duration);
 
         return match poll(&mut[pollfd], sleep_duration_millis) {
             Ok(0) => {
@@ -56,6 +62,24 @@ fn sleep_until(time: NaiveTime, fd: &impl AsRawFd) -> io::Result<SleepResult> {
             }
         }
     }
+}
+
+fn read_until_ewouldblock(mut file: impl Read) -> io::Result<()> {
+    loop {
+        let mut data = [0u8; 1];
+        let result = file.read_exact(&mut data);
+        debug!("control file read result: {:?} / {:x?}", result, data);
+        match result {
+            Ok(_) => (),
+            Err(e) if e.raw_os_error() == Some(nix::errno::EWOULDBLOCK as i32) => {
+                break;
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn run(config: Config, args: RunArgs) -> Result<(), failure::Error> {
@@ -81,16 +105,19 @@ pub fn run(config: Config, args: RunArgs) -> Result<(), failure::Error> {
 
     info!("process ID: {}", std::process::id());
 
+    let mut now = DaylogTime::now();
+
     while !sigterm_flag.load(Ordering::SeqCst) {
-        let now = Utc::now().time();
-        let (next_time, do_send) = match db.get_next_send_time(now)? {
-            Some(time) => {
+        let mut users_query = db.get_users_to_send()?;
+
+        let (next_time, users) = match users_query.next_from_time(now)? {
+            Some((time, users)) => {
                 info!("sleep until {}", time);
-                (time, true)
+                (time, Some(users))
             }
             None => {
                 info!("sleep until midnight and try again");
-                (NaiveTime::from_hms(23, 59, 59), false)
+                (DaylogTime::new(23, 59), None)
             }
         };
 
@@ -99,18 +126,24 @@ pub fn run(config: Config, args: RunArgs) -> Result<(), failure::Error> {
         match result {
             SleepResult::Completed => (),
             SleepResult::FdReadable => {
-                let mut data = [0u8; 1];
-                control.as_ref().read_exact(&mut data)?;
-                println!("data read: {:?}", data);
+                read_until_ewouldblock(control.as_ref())
+                    .with_context(|e| format!("error draining control file: {}", e))?;
                 continue;
             }
         }
 
-        if !do_send {
-            continue;
+        if let Some(users) = users {
+            for user in users {
+                info!("sending to {:?}", user);
+                if !args.dry_run {
+                    // TODO: actually do something
+                }
+            }
         }
 
-        // TODO: actually do things
+        // Don't actually use the current time; in case sending takes longer than 1 minute, we want
+        // to only advance to the next minute for checking the database.
+        now = next_time.succ();
     }
 
     Ok(())

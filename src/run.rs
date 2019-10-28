@@ -1,21 +1,25 @@
 use crate::{Config, RunArgs};
 use crate::db::Database;
-use crate::named_pipe::NamedPipe;
 use crate::time::DaylogTime;
 use failure::ResultExt;
+use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::poll::{poll, PollFd, PollFlags};
+use nix::sys::socket::{send, MsgFlags};
 use std::io::{self, Read};
-use std::os::unix::io::AsRawFd;
+use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::net::UnixStream;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-fn handle_signal<F>(signal: i32, file: F, flag: Arc<AtomicBool>) -> Result<(), failure::Error>
-    where F: AsRawFd + Sync + Send + 'static,
+fn handle_signal(signal: i32, sock: UnixStream, flag: Option<Arc<AtomicBool>>)
+    -> Result<(), failure::Error>
 {
     let action = move || {
-        flag.store(true, Ordering::SeqCst);
+        if let Some(ref flag) = flag {
+            (*flag).store(true, Ordering::SeqCst);
+        }
         // note: we can't handle errors in a signal handler context
-        let _ = nix::unistd::write(file.as_raw_fd(), b"X");
+        let _ = send(sock.as_raw_fd(), b"X", MsgFlags::MSG_DONTWAIT);
     };
     unsafe {
         signal_hook::register(signal, action)
@@ -28,8 +32,8 @@ enum SleepResult {
     FdReadable,
 }
 
-fn sleep_until(time: DaylogTime, fd: &impl AsRawFd) -> io::Result<SleepResult> {
-    let pollfd = PollFd::new(fd.as_raw_fd(), PollFlags::POLLIN);
+fn sleep_until(time: DaylogTime, control: &UnixStream) -> io::Result<SleepResult> {
+    let pollfd = PollFd::new(control.as_raw_fd(), PollFlags::POLLIN);
     loop {
         let now = chrono::Utc::now().time();
         debug!("now it is {}", now.format("%H:%M:%S"));
@@ -82,24 +86,38 @@ fn read_until_ewouldblock(mut file: impl Read) -> io::Result<()> {
     Ok(())
 }
 
+fn set_nonblocking(f: RawFd) -> Result<(), failure::Error> {
+    let flags_raw = fcntl(f, FcntlArg::F_GETFL)?;
+    let mut flags = OFlag::from_bits_truncate(flags_raw);
+    flags.insert(OFlag::O_NONBLOCK);
+    fcntl(f, FcntlArg::F_SETFL(flags))?;
+    Ok(())
+}
+
 pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
-    info!("starting service; using {:?} as control file", config.control_path);
+    info!("starting service");
 
-    let mut control = NamedPipe::open_or_create(&config.control_path)
-        .with_context(|e| format!("failed to create/open control file {:?}: {}", config.control_path, e))?;
+    let (control, control_sigterm) = UnixStream::pair()?;
+    let control_sighup = control_sigterm.try_clone()?;
 
-    control.set_nonblocking(true)
-        .context("failed to set control file to nonblocking mode")?;
+    set_nonblocking(control.as_raw_fd())
+        .context("failed to set control socket nonblocking")?;
 
     let sigterm_flag = Arc::new(AtomicBool::new(false));
 
     handle_signal(
         signal_hook::SIGTERM,
-        control.try_clone()
-            .with_context(|e| format!("failed to duplicate control file handle: {}", e))?,
-        Arc::clone(&sigterm_flag),
+        control_sigterm,
+        Some(Arc::clone(&sigterm_flag)),
     )
         .with_context(|e| format!("failed to install SIGTERM handler: {}", e))?;
+
+    handle_signal(
+        signal_hook::SIGHUP,
+        control_sighup,
+        None,
+    )
+        .with_context(|e| format!("failed to install SIGHUP handler: {}", e))?;
 
     let db = Database::open(&config.database_path)?;
 
@@ -126,15 +144,8 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
         match result {
             SleepResult::Completed => (),
             SleepResult::FdReadable => {
-                read_until_ewouldblock(control.as_ref())
+                read_until_ewouldblock(&control)
                     .with_context(|e| format!("error draining control file: {}", e))?;
-
-                if !sigterm_flag.load(Ordering::SeqCst) {
-                    // if this flag isn't set, it means we got a request to reload
-                    // write back to the pipe to tell the other side we're done.
-                    let _ = nix::unistd::write(control.as_raw_fd(), b"!");
-                }
-
                 continue;
             }
         }

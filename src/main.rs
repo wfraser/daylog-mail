@@ -6,8 +6,6 @@ mod ingest;
 mod message_id;
 mod mail;
 mod maildir;
-mod named_pipe;
-mod reload;
 mod run;
 mod send;
 mod time;
@@ -41,13 +39,6 @@ enum Operation {
     /// Run as a service, blocking indefinitely. Send all users their daily mail at the
     /// pre-configured time, and process incoming mail periodically.
     Run(RunArgs),
-
-    /// Trigger any running service to reload its configuration. This command blocks until the
-    /// service has finished relaoding.
-    Reload,
-
-    /// For development only.
-    Test,
 }
 
 #[derive(StructOpt, Debug)]
@@ -106,25 +97,6 @@ fn main() -> Result<(), Error> {
         Operation::Ingest(op) => ingest::ingest(&args.config, op),
         Operation::Send(op) => send::send(&args.config, op),
         Operation::Run(op) => run::run(&args.config, op),
-        Operation::Reload => reload::reload(&args.config),
-        Operation::Test => {
-            /*
-            let now = time::DaylogTime::now();
-            println!("right now it is {}", now.format(db::TIME_FORMAT).to_string());
-
-            let db = db::Database::open(&args.config.database_path)?;
-            if let Some((time, users)) = db.get_users_to_send()?.next_from_time(&now)? {
-                println!("Sleep until {:?}", time);
-                println!("Then send to:");
-                for user in users {
-                    println!("{:?}", user);
-                }
-            } else {
-                println!("Nobody to send to! Sleep until midnight and check again.");
-            }
-            */
-            Ok(())
-        }
     }
 }
 

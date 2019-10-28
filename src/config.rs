@@ -14,9 +14,6 @@ pub struct Config {
     pub return_addr: String,
 
     pub incoming_mail: IncomingMailConfig,
-
-    #[serde(rename = "control_file")]
-    pub control_path: PathBuf,
 }
 
 impl Config {
@@ -67,7 +64,6 @@ mod test {
 database: /some/db.sqlite
 secret_key: /some/secret/file
 return_addr: daylog@example.com
-control_file: /some/file.fifo
 incoming_mail:
     maildir:
         path: /var/spool/mail/daylog
@@ -77,7 +73,6 @@ incoming_mail:
             database_path: PathBuf::from("/some/db.sqlite"),
             secret_key_path: PathBuf::from("/some/secret/file"),
             return_addr: "daylog@example.com".to_owned(),
-            control_path: PathBuf::from("/some/file.fifo"),
             incoming_mail: IncomingMailConfig::Maildir {
                 path: PathBuf::from("/var/spool/mail/daylog"),
             },

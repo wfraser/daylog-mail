@@ -59,10 +59,10 @@ fn sleep_until(time: NaiveTime, fd: &impl AsRawFd) -> io::Result<SleepResult> {
 }
 
 pub fn run(config: Config, args: RunArgs) -> Result<(), failure::Error> {
-    info!("starting service; using {:?} as control file", args.control_path);
+    info!("starting service; using {:?} as control file", config.control_path);
 
-    let mut control = NamedPipe::open_or_create(&args.control_path)
-        .with_context(|e| format!("failed to create/open control file {:?}: {}", args.control_path, e))?;
+    let mut control = NamedPipe::open_or_create(&config.control_path)
+        .with_context(|e| format!("failed to create/open control file {:?}: {}", config.control_path, e))?;
 
     control.set_nonblocking(true)
         .context("failed to set control file to nonblocking mode")?;

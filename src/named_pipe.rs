@@ -14,7 +14,7 @@ pub struct NamedPipe {
 
 impl NamedPipe {
     pub fn create(path: impl AsRef<Path>) -> io::Result<()> {
-        mkfifo(path.as_ref(), Mode::S_IRWXU)
+        mkfifo(path.as_ref(), Mode::S_IRUSR | Mode::S_IWUSR)
             .as_io_result_ignoring(Errno::EEXIST)
     }
 

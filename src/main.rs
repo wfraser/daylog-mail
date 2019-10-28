@@ -76,10 +76,6 @@ pub struct SendArgs {
 
 #[derive(StructOpt, Debug)]
 pub struct RunArgs {
-    /// Path to a file that can be used to communicate with the running service.
-    #[structopt(long("control"))]
-    control_path: PathBuf,
-
     /// log what would be done, but do not make any changes
     #[structopt(long("dry-run"))]
     dry_run: bool,

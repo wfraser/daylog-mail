@@ -7,6 +7,7 @@ mod message_id;
 mod mail;
 mod maildir;
 mod named_pipe;
+mod reload;
 mod run;
 mod send;
 mod time;
@@ -105,7 +106,7 @@ fn main() -> Result<(), Error> {
         Operation::Ingest(op) => ingest::ingest(&args.config, op),
         Operation::Send(op) => send::send(&args.config, op),
         Operation::Run(op) => run::run(&args.config, op),
-        Operation::Reload => unimplemented!("reload operation"),
+        Operation::Reload => reload::reload(&args.config),
         Operation::Test => {
             /*
             let now = time::DaylogTime::now();

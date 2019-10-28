@@ -128,6 +128,13 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
             SleepResult::FdReadable => {
                 read_until_ewouldblock(control.as_ref())
                     .with_context(|e| format!("error draining control file: {}", e))?;
+
+                if !sigterm_flag.load(Ordering::SeqCst) {
+                    // if this flag isn't set, it means we got a request to reload
+                    // write back to the pipe to tell the other side we're done.
+                    let _ = nix::unistd::write(control.as_raw_fd(), b"!");
+                }
+
                 continue;
             }
         }

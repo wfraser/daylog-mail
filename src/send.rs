@@ -6,7 +6,7 @@ use failure::ResultExt;
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
 
-pub fn send(config: Config, args: SendArgs) -> Result<(), failure::Error> {
+pub fn send(config: &Config, args: SendArgs) -> Result<(), failure::Error> {
     let key_bytes = read_secret_key(&config.secret_key_path)
         .with_context(|e|
             format!("failed to read secret key {:?}: {}", config.secret_key_path, e))?;

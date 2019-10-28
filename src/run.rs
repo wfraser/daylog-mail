@@ -82,7 +82,7 @@ fn read_until_ewouldblock(mut file: impl Read) -> io::Result<()> {
     Ok(())
 }
 
-pub fn run(config: Config, args: RunArgs) -> Result<(), failure::Error> {
+pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
     info!("starting service; using {:?} as control file", config.control_path);
 
     let mut control = NamedPipe::open_or_create(&config.control_path)
@@ -136,7 +136,23 @@ pub fn run(config: Config, args: RunArgs) -> Result<(), failure::Error> {
             for user in users {
                 info!("sending to {:?}", user);
                 if !args.dry_run {
-                    // TODO: actually do something
+                    let tz: chrono_tz::Tz = match std::str::FromStr::from_str(user.timezone.as_str()) {
+                        Ok(tz) => tz,
+                        Err(e) => {
+                            error!("failed to parse {:?} as timezone (for user {:?}): {}",
+                                user.timezone, user.username, e);
+                            continue;
+                        }
+                    };
+                    let result = crate::send::send(config, crate::SendArgs {
+                        username: user.username.clone(),
+                        email: user.email.clone(),
+                        timezone: tz,
+                        date_override: None,
+                    });
+                    if let Err(e) = result {
+                        error!("failed to send to {:?}: {}", user, e);
+                    }
                 }
             }
         }

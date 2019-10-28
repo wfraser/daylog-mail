@@ -6,7 +6,7 @@ use crate::IngestArgs;
 use failure::ResultExt;
 use regex::Regex;
 
-pub fn ingest(config: Config, args: IngestArgs) -> Result<(), failure::Error> {
+pub fn ingest(config: &Config, args: IngestArgs) -> Result<(), failure::Error> {
     let key_bytes = read_secret_key(&config.secret_key_path)
         .with_context(|e|
             format!("failed to read secret key {:?}: {}", config.secret_key_path, e))?;

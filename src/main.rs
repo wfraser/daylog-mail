@@ -102,9 +102,9 @@ fn main() -> Result<(), Error> {
     debug!("{:#?}", args);
 
     match args.op {
-        Operation::Ingest(op) => ingest::ingest(args.config, op),
-        Operation::Send(op) => send::send(args.config, op),
-        Operation::Run(op) => run::run(args.config, op),
+        Operation::Ingest(op) => ingest::ingest(&args.config, op),
+        Operation::Send(op) => send::send(&args.config, op),
+        Operation::Run(op) => run::run(&args.config, op),
         Operation::Reload => unimplemented!("reload operation"),
         Operation::Test => {
             /*

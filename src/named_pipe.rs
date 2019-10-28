@@ -37,11 +37,7 @@ impl NamedPipe {
 
     pub fn set_nonblocking(&mut self, nonblocking: bool) -> io::Result<()> {
         let flags_raw = fcntl(self.file.as_raw_fd(), FcntlArg::F_GETFL).as_io_result()?;
-        error!("flags raw: {:#x}", flags_raw);
-        //let mut flags = OFlag::from_bits(flags_raw)
-        //    .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "invalid file flags"))?;
         let mut flags = OFlag::from_bits_truncate(flags_raw);
-        error!("flags parsed: {:#?}", flags);
         if nonblocking {
             flags.insert(OFlag::O_NONBLOCK);
         } else {

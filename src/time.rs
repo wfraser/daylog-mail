@@ -41,8 +41,8 @@ impl DaylogTime {
         )
     }
 
-    pub fn duration_until(self, other: NaiveTime) -> chrono::Duration {
-        -(other - self.as_naivetime())
+    pub fn duration_from(self, earlier_time: NaiveTime) -> chrono::Duration {
+        self.as_naivetime().signed_duration_since(earlier_time)
     }
 
     pub fn format(self) -> String {
@@ -69,18 +69,8 @@ impl DaylogTime {
 
 impl From<NaiveTime> for DaylogTime {
     fn from(time: NaiveTime) -> Self {
-        let mut hour = time.hour() as u8;
-        let mut minute = time.minute() as u8;
-        if time.second() > 0 {
-            minute += 1;
-            if minute == 60 {
-                minute = 0;
-                hour += 1;
-                if hour == 24 {
-                    hour = 0;
-                }
-            }
-        }
+        let hour = time.hour() as u8;
+        let minute = time.minute() as u8;
         Self { hour, minute }
     }
 }

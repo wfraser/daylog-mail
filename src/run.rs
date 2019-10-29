@@ -1,3 +1,4 @@
+use chrono::{Duration, NaiveTime, Timelike};
 use crate::{Config, RunArgs};
 use crate::db::Database;
 use crate::time::DaylogTime;
@@ -37,7 +38,17 @@ fn sleep_until(time: DaylogTime, control: &UnixStream) -> io::Result<SleepResult
     loop {
         let now = chrono::Utc::now().time();
         debug!("now it is {}", now.format("%H:%M:%S"));
-        let sleep_duration = time.duration_until(now);
+        let sleep_duration = if now.hour() == 23 && now.minute() == 59 {
+            // get to midnight first
+            (NaiveTime::from_hms(23, 59, 59).signed_duration_since(now)) + Duration::seconds(1)
+        } else {
+            let d = time.duration_from(now);
+            if d < Duration::minutes(1) {
+                info!("sleep duration is < 1 minute; returning immediately");
+                break;
+            }
+            d
+        };
         let sleep_duration_millis = sleep_duration.num_milliseconds() as i32;
         if sleep_duration_millis < 0 {
             warn!("sleep duration is negative: {:?}", sleep_duration); // means we're not keeping up
@@ -66,6 +77,7 @@ fn sleep_until(time: DaylogTime, control: &UnixStream) -> io::Result<SleepResult
             }
         }
     }
+    Ok(SleepResult::Completed)
 }
 
 fn read_until_ewouldblock(mut file: impl Read) -> io::Result<()> {

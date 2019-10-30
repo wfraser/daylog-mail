@@ -64,7 +64,7 @@ impl Database {
                 named_params!{ ":username": username, ":date": date },
                 |row| Ok((row.get(0)?, row.get(1)?)),
                 )?;
-            eprintln!("updating existing row {}: {}/{}", id, username, date);
+            info!("updating existing row {}: {}/{}", id, username, date);
             update_body.push('\n');
             update_body +=  body;
             tx.execute_named(
@@ -83,7 +83,7 @@ impl Database {
     pub fn get_next_send_time(&self, from_time: DaylogTime) -> Result<Option<DaylogTime>, failure::Error> {
         let next_time: Option<String> = self.db.query_row_named(
             "SELECT email_time_utc FROM users WHERE email_time_utc >= :from_time ORDER BY email_time_utc ASC LIMIT 1",
-            named_params!{ ":from_time": from_time.format() },
+            named_params!{ ":from_time": from_time.to_string() },
             |row| row.get(0),
             )
             .optional()
@@ -114,7 +114,7 @@ pub struct UsersBySendTimeQuery<'db> {
 impl<'db> UsersBySendTimeQuery<'db> {
     pub fn for_time(&mut self, time: DaylogTime) -> Result<UsersQueryResult<'_>, failure::Error> {
         let rows = self.stmt.query_named(
-            named_params!{ ":time": time.format() },
+            named_params!{ ":time": time.to_string() },
             )?;
         Ok(UsersQueryResult { rows, columns: &self.columns })
     }

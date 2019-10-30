@@ -1,3 +1,4 @@
+use chrono::Duration;
 use crate::{Config, RunArgs};
 use crate::db::Database;
 use crate::time::{SleepTime, DaylogTime};
@@ -32,6 +33,17 @@ enum SleepResult {
     FdReadable,
 }
 
+fn duration_fmt(mut dur: Duration) -> String {
+    let mut out = format!("{}h, ", dur.num_hours());
+    dur = dur - Duration::hours(dur.num_hours());
+    out += &format!("{}m, ", dur.num_minutes());
+    dur = dur - Duration::minutes(dur.num_minutes());
+    out += &format!("{}s, ", dur.num_seconds());
+    dur = dur - Duration::seconds(dur.num_seconds());
+    out += &format!("{}ns", dur.num_nanoseconds().unwrap());
+    out
+}
+
 fn sleep_until(time: SleepTime, control: &UnixStream) -> io::Result<SleepResult> {
     let pollfd = PollFd::new(control.as_raw_fd(), PollFlags::POLLIN);
     loop {
@@ -40,10 +52,11 @@ fn sleep_until(time: SleepTime, control: &UnixStream) -> io::Result<SleepResult>
         let sleep_duration = time.duration_from(now);
         let sleep_duration_millis = sleep_duration.num_milliseconds() as i32;
         if sleep_duration_millis < 0 {
-            warn!("sleep duration is negative: {:?}", sleep_duration); // means we're not keeping up
+            // this means we're not keeping up
+            warn!("sleep duration is negative: {:?}", sleep_duration);
             return Ok(SleepResult::Completed);
         }
-        debug!("sleeping for {:?}", sleep_duration);
+        debug!("sleeping for {}", duration_fmt(sleep_duration));
 
         return match poll(&mut[pollfd], sleep_duration_millis) {
             Ok(0) => {
@@ -72,7 +85,7 @@ fn read_until_ewouldblock(mut file: impl Read) -> io::Result<()> {
     loop {
         let mut data = [0u8; 1];
         let result = file.read_exact(&mut data);
-        debug!("control file read result: {:?} / {:x?}", result, data);
+        debug!("control file read result: {:?} / {:#x?}", result, data);
         match result {
             Ok(_) => (),
             Err(e) if e.raw_os_error() == Some(nix::errno::EWOULDBLOCK as i32) => {

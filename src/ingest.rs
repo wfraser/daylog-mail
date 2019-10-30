@@ -79,7 +79,7 @@ pub fn ingest(config: &Config, args: IngestArgs) -> Result<(), failure::Error> {
         }
     }))?;
 
-    println!("{:#?}", stats);
+    info!("{:#?}", stats);
 
     Ok(())
 }

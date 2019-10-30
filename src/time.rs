@@ -1,4 +1,4 @@
-use chrono::{NaiveTime, Timelike};
+use chrono::{Duration, NaiveTime, Timelike};
 
 /// Daylog operates in UTC, with minute resolution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -11,6 +11,11 @@ impl DaylogTime {
     pub fn now() -> Self {
         let time = chrono::Utc::now().time();
         Self::from(time)
+    }
+
+    #[cfg(test)]
+    pub fn new(hour: u8, minute: u8) -> Self {
+        Self { hour, minute }
     }
 
     pub fn zero() -> Self {
@@ -42,17 +47,13 @@ impl DaylogTime {
         )
     }
 
-    pub fn duration_from(self, earlier_time: NaiveTime) -> chrono::Duration {
+    pub fn duration_from(self, earlier_time: NaiveTime) -> Duration {
         self.as_naivetime().signed_duration_since(earlier_time)
     }
 
-    pub fn duration_since_start_of_day(self) -> chrono::Duration {
-        chrono::Duration::hours(i64::from(self.hour))
-            + chrono::Duration::minutes(i64::from(self.minute))
-    }
-
-    pub fn format(self) -> String {
-        format!("{:02}:{:02}", self.hour, self.minute)
+    pub fn duration_since_start_of_day(self) -> Duration {
+        Duration::hours(i64::from(self.hour))
+            + Duration::minutes(i64::from(self.minute))
     }
 
     pub fn parse(s: &str) -> Result<Self, failure::Error> {
@@ -83,16 +84,9 @@ impl From<NaiveTime> for DaylogTime {
 
 impl std::fmt::Display for DaylogTime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.format())
+        write!(f, "{:02}:{:02}", self.hour, self.minute)
     }
 }
-
-/*impl Deref for DaylogTime {
-    type Target = NaiveTime;
-    fn deref(&self) -> &NaiveTime {
-        &NaiveTime::from_hms(u32::from(self.hour), u32::from(self.minute), 0)
-    }
-}*/
 
 /// Represents a time to be waited until.
 #[derive(Debug, Copy, Clone)]
@@ -102,13 +96,11 @@ pub enum SleepTime {
 }
 
 impl SleepTime {
-    pub fn duration_from(self, earlier_time: NaiveTime) -> chrono::Duration {
+    pub fn duration_from(self, earlier_time: NaiveTime) -> Duration {
         match self {
             SleepTime::Tomorrow(time) => {
-                chrono::Duration::days(1)
-                    - (chrono::Duration::hours(i64::from(earlier_time.hour()))
-                        + chrono::Duration::minutes(i64::from(earlier_time.minute()))
-                        + chrono::Duration::seconds(i64::from(earlier_time.second())))
+                Duration::days(1)
+                    - (earlier_time - NaiveTime::from_hms(0, 0, 0))
                     + time.duration_since_start_of_day()
             }
             SleepTime::Today(time) => {
@@ -123,9 +115,25 @@ mod test {
     use super::*;
 
     #[test]
+    fn test_duration() {
+        assert_eq!(
+            Duration::hours(47) + Duration::minutes(59),
+            SleepTime::Tomorrow(DaylogTime::new(23, 59))
+                .duration_from(NaiveTime::from_hms(0,0,0)));
+        assert_eq!(
+            Duration::seconds(-56),
+            SleepTime::Today(DaylogTime::new(12, 34))
+                .duration_from(NaiveTime::from_hms(12, 34, 56)));
+        assert_eq!(
+            Duration::seconds(1),
+            SleepTime::Tomorrow(DaylogTime::zero())
+                .duration_from(NaiveTime::from_hms(23, 59, 59)));
+    }
+
+    #[test]
     fn test_format() {
-        assert_eq!("23:59", DaylogTime::new(23, 59).format());
-        assert_eq!("00:00", DaylogTime::new(0, 0).format());
+        assert_eq!("23:59", DaylogTime::new(23, 59).to_string());
+        assert_eq!("00:00", DaylogTime::new(0, 0).to_string());
     }
 
     #[test]
@@ -135,4 +143,3 @@ mod test {
         assert!(DaylogTime::parse("99:99").is_err());
     }
 }
-

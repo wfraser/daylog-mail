@@ -13,10 +13,11 @@ impl DaylogTime {
         Self::from(time)
     }
 
-    pub fn new(hour: u8, minute: u8) -> Self {
-        assert!(hour < 24);
-        assert!(minute < 60);
-        Self { hour, minute }
+    pub fn zero() -> Self {
+        Self {
+            hour: 0,
+            minute: 0,
+        }
     }
 
     pub fn succ(self) -> Self {
@@ -43,6 +44,11 @@ impl DaylogTime {
 
     pub fn duration_from(self, earlier_time: NaiveTime) -> chrono::Duration {
         self.as_naivetime().signed_duration_since(earlier_time)
+    }
+
+    pub fn duration_since_start_of_day(self) -> chrono::Duration {
+        chrono::Duration::hours(i64::from(self.hour))
+            + chrono::Duration::minutes(i64::from(self.minute))
     }
 
     pub fn format(self) -> String {
@@ -87,6 +93,30 @@ impl std::fmt::Display for DaylogTime {
         &NaiveTime::from_hms(u32::from(self.hour), u32::from(self.minute), 0)
     }
 }*/
+
+/// Represents a time to be waited until.
+#[derive(Debug, Copy, Clone)]
+pub enum SleepTime {
+    Tomorrow(DaylogTime),
+    Today(DaylogTime),
+}
+
+impl SleepTime {
+    pub fn duration_from(self, earlier_time: NaiveTime) -> chrono::Duration {
+        match self {
+            SleepTime::Tomorrow(time) => {
+                chrono::Duration::days(1)
+                    - (chrono::Duration::hours(i64::from(earlier_time.hour()))
+                        + chrono::Duration::minutes(i64::from(earlier_time.minute()))
+                        + chrono::Duration::seconds(i64::from(earlier_time.second())))
+                    + time.duration_since_start_of_day()
+            }
+            SleepTime::Today(time) => {
+                time.duration_from(earlier_time)
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod test {

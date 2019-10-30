@@ -1,7 +1,6 @@
-use chrono::{Duration, NaiveTime, Timelike};
 use crate::{Config, RunArgs};
 use crate::db::Database;
-use crate::time::DaylogTime;
+use crate::time::{SleepTime, DaylogTime};
 use failure::ResultExt;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::poll::{poll, PollFd, PollFlags};
@@ -33,22 +32,12 @@ enum SleepResult {
     FdReadable,
 }
 
-fn sleep_until(time: DaylogTime, control: &UnixStream) -> io::Result<SleepResult> {
+fn sleep_until(time: SleepTime, control: &UnixStream) -> io::Result<SleepResult> {
     let pollfd = PollFd::new(control.as_raw_fd(), PollFlags::POLLIN);
     loop {
         let now = chrono::Utc::now().time();
         debug!("now it is {}", now.format("%H:%M:%S"));
-        let sleep_duration = if now.hour() == 23 && now.minute() == 59 {
-            // get to midnight first
-            (NaiveTime::from_hms(23, 59, 59).signed_duration_since(now)) + Duration::seconds(1)
-        } else {
-            let d = time.duration_from(now);
-            if d < Duration::minutes(1) {
-                info!("sleep duration is < 1 minute; returning immediately");
-                break;
-            }
-            d
-        };
+        let sleep_duration = time.duration_from(now);
         let sleep_duration_millis = sleep_duration.num_milliseconds() as i32;
         if sleep_duration_millis < 0 {
             warn!("sleep duration is negative: {:?}", sleep_duration); // means we're not keeping up
@@ -75,9 +64,8 @@ fn sleep_until(time: DaylogTime, control: &UnixStream) -> io::Result<SleepResult
                     other_nix_err => Err(io::Error::new(io::ErrorKind::Other, other_nix_err)),
                 }
             }
-        }
+        };
     }
-    Ok(SleepResult::Completed)
 }
 
 fn read_until_ewouldblock(mut file: impl Read) -> io::Result<()> {
@@ -135,19 +123,32 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
 
     info!("process ID: {}", std::process::id());
 
-    let mut now = DaylogTime::now();
+    let mut now = SleepTime::Today(DaylogTime::now());
 
     while !sigterm_flag.load(Ordering::SeqCst) {
         let mut users_query = db.get_users_to_send()?;
 
-        let (next_time, users) = match users_query.next_from_time(now)? {
-            Some((time, users)) => {
-                info!("sleep until {}", time);
-                (time, Some(users))
+        let (next_time, users) = match now {
+            SleepTime::Today(time) => match users_query.next_from_time(time)? {
+                Some((next_time, users)) => {
+                    info!("sleep until {}", next_time);
+                    (SleepTime::Today(next_time), users)
+                }
+                None => {
+                    info!("no more users today; checking tomorrow");
+                    now = SleepTime::Tomorrow(DaylogTime::zero());
+                    continue;
+                }
             }
-            None => {
-                info!("sleep until midnight and try again");
-                (DaylogTime::new(23, 59), None)
+            SleepTime::Tomorrow(time) => match users_query.next_from_time(time)? {
+                Some((next_time, users)) => {
+                    info!("sleep until tomorrow, {}", next_time);
+                    (SleepTime::Tomorrow(next_time), users)
+                }
+                None => {
+                    error!("no users are configured!");
+                    return Ok(());
+                }
             }
         };
 
@@ -162,35 +163,39 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
             }
         }
 
-        if let Some(users) = users {
-            for user in users {
-                info!("sending to {:?}", user);
-                if !args.dry_run {
-                    let tz: chrono_tz::Tz = match std::str::FromStr::from_str(user.timezone.as_str()) {
-                        Ok(tz) => tz,
-                        Err(e) => {
-                            error!("failed to parse {:?} as timezone (for user {:?}): {}",
-                                user.timezone, user.username, e);
-                            continue;
-                        }
-                    };
-                    let result = crate::send::send(config, crate::SendArgs {
-                        username: user.username.clone(),
-                        email: user.email.clone(),
-                        timezone: tz,
-                        date_override: None,
-                    });
-                    if let Err(e) = result {
-                        error!("failed to send to {:?}: {}", user, e);
+        for user in users {
+            info!("sending to {:?}", user);
+            if !args.dry_run {
+                let tz: chrono_tz::Tz = match std::str::FromStr::from_str(user.timezone.as_str()) {
+                    Ok(tz) => tz,
+                    Err(e) => {
+                        error!("failed to parse {:?} as timezone (for user {:?}): {}",
+                            user.timezone, user.username, e);
+                        continue;
                     }
+                };
+                let result = crate::send::send(config, crate::SendArgs {
+                    username: user.username.clone(),
+                    email: user.email.clone(),
+                    timezone: tz,
+                    date_override: None,
+                });
+                if let Err(e) = result {
+                    error!("failed to send to {:?}: {}", user, e);
                 }
             }
         }
 
         // Don't actually use the current time; in case sending takes longer than 1 minute, we want
         // to only advance to the next minute for checking the database.
-        now = next_time.succ();
+        now = match next_time {
+            SleepTime::Today(time) | SleepTime::Tomorrow(time) => {
+                // we already slept until tomorrow, so now it's today no matter what
+                SleepTime::Today(time.succ())
+            }
+        };
     }
 
+    info!("termination requested; exiting");
     Ok(())
 }

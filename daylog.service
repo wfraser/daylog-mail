@@ -1,0 +1,10 @@
+[Unit]
+Description = Daylog daily email sending service
+
+[Service]
+Type = exec
+ExecStart = /path/to/daylog-email /path/to/config.yaml -vvv run
+ExecReload = /bin/kill -HUP $MAINPID
+
+[Install]
+WantedBy = multi-user.target

@@ -84,6 +84,15 @@ pub fn ingest(config: &Config, args: IngestArgs) -> Result<(), failure::Error> {
     Ok(())
 }
 
+pub fn mail_transform(_config: &Config, raw: &[u8]) -> Result<String, failure::Error> {
+    let parsed = mailparse::parse_mail(raw)
+        .context("failed to parse mail")?;
+    let pre_processed = crate::mail::Mail::parse(parsed)
+        .context("failed to parse mail as Daylog reply")?;
+    let processed = process_body(&pre_processed.body);
+    Ok(processed)
+}
+
 fn process_body(input: &str) -> String {
     let quote_begin = Regex::new("\nOn (Mon|Tue|Wed|Thu|Fri|Sat|Sun), (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [^>]+([^\n]>)?( |\n)wrote:\n\n?>").unwrap();
     let signature = Regex::new("(?s)\n-- \n.*$").unwrap();

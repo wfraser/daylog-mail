@@ -39,6 +39,10 @@ enum Operation {
     /// Run as a service, blocking indefinitely. Send all users their daily mail at the
     /// pre-configured time, and process incoming mail periodically.
     Run(RunArgs),
+
+    /// Read a raw email from standard input, and write to standard output the sanitized version of
+    /// it. This does not alter the database.
+    MailTransform,
 }
 
 #[derive(StructOpt, Debug)]
@@ -97,6 +101,13 @@ fn main() -> Result<(), Error> {
         Operation::Ingest(op) => ingest::ingest(&args.config, op),
         Operation::Send(op) => send::send(&args.config, op),
         Operation::Run(op) => run::run(&args.config, op),
+        Operation::MailTransform => {
+            let mut raw_input = vec![];
+            std::io::Read::read_to_end(&mut std::io::stdin(), &mut raw_input).unwrap();
+            let processed = ingest::mail_transform(&args.config, &raw_input)?;
+            println!("{}", processed);
+            Ok(())
+        }
     }
 }
 

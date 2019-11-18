@@ -2,7 +2,7 @@ use crate::config::{Config, IncomingMailConfig};
 use crate::mail::{MailProcessAction, MailSource};
 use crate::maildir::DaylogMaildir;
 use crate::message_id::{is_our_message_id, read_secret_key, verify_message_id};
-use crate::IngestArgs;
+use crate::{IngestArgs, MailTransformArgs};
 use failure::ResultExt;
 use regex::Regex;
 
@@ -84,13 +84,19 @@ pub fn ingest(config: &Config, args: IngestArgs) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn mail_transform(_config: &Config, raw: &[u8]) -> Result<String, failure::Error> {
+pub fn mail_transform(_config: &Config, args: MailTransformArgs, raw: &[u8])
+    -> Result<String, failure::Error>
+{
     let parsed = mailparse::parse_mail(raw)
         .context("failed to parse mail")?;
     let pre_processed = crate::mail::Mail::parse(parsed)
         .context("failed to parse mail as Daylog reply")?;
-    let processed = process_body(&pre_processed.body);
-    Ok(processed)
+    if args.pre_transform {
+        Ok(pre_processed.body)
+    } else {
+        let processed = process_body(&pre_processed.body);
+        Ok(processed)
+    }
 }
 
 fn process_body(input: &str) -> String {

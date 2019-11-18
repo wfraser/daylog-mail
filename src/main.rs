@@ -41,7 +41,7 @@ enum Operation {
 
     /// Read a raw email from standard input, and write to standard output the sanitized version of
     /// it. This does not alter the database.
-    MailTransform,
+    MailTransform(MailTransformArgs),
 }
 
 #[derive(StructOpt, Debug)]
@@ -77,6 +77,13 @@ pub struct RunArgs {
     dry_run: bool,
 }
 
+#[derive(StructOpt, Debug)]
+pub struct MailTransformArgs {
+    /// Print the plain-text mail body without applying any transformations on it.
+    #[structopt(long("pre-transform"))]
+    pre_transform: bool,
+}
+
 fn main() -> Result<(), Error> {
     let args = Args::from_args();
 
@@ -91,10 +98,10 @@ fn main() -> Result<(), Error> {
         Operation::Ingest(op) => ingest::ingest(&args.config, op),
         Operation::Send(op) => send::send(&args.config, op),
         Operation::Run(op) => run::run(&args.config, op),
-        Operation::MailTransform => {
+        Operation::MailTransform(op) => {
             let mut raw_input = vec![];
             std::io::Read::read_to_end(&mut std::io::stdin(), &mut raw_input).unwrap();
-            let processed = ingest::mail_transform(&args.config, &raw_input)?;
+            let processed = ingest::mail_transform(&args.config, op, &raw_input)?;
             println!("{}", processed);
             Ok(())
         }

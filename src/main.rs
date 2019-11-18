@@ -13,7 +13,6 @@ mod time;
 use chrono::NaiveDate;
 use crate::config::Config;
 use failure::Error;
-use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -76,15 +75,6 @@ pub struct RunArgs {
     /// log what would be done, but do not make any changes
     #[structopt(long("dry-run"))]
     dry_run: bool,
-}
-
-#[derive(StructOpt, Debug)]
-pub struct ReloadArgs {
-    /// Path to a control file in use by a running daylog instance.
-    /// See the `--control` flag to the `run` operation.
-    /// See `daylog run --help`
-    #[structopt(long("control"))]
-    control_path: PathBuf,
 }
 
 fn main() -> Result<(), Error> {

@@ -101,7 +101,7 @@ pub fn mail_transform(_config: &Config, args: MailTransformArgs, raw: &[u8])
 
 fn process_body(input: &str) -> String {
     let quote_begin = Regex::new("\nOn (Mon|Tue|Wed|Thu|Fri|Sat|Sun), (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [^>]+([^\n]>)?( |\r?\n)wrote:\r?\n\r?\n?>").unwrap();
-    let signature = Regex::new("(?s)\n-- \n.*$").unwrap();
+    let signature = Regex::new("(?s)\r?\n-- \r?\n.*$").unwrap();
 
     signature.replace_all(&quote_begin.replace_all(input, "\n>"), "")
         .lines()

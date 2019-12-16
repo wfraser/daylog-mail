@@ -9,7 +9,7 @@
 database: daylog.db
 
 # A secret key used to generate and verify Message-ID headers for emails.
-# Must point to a file containing 32 bits of data.
+# Must point to a file containing 32 bytes of data.
 # A good way to initialize this is by running:
 #   $ head -c32 /dev/random > key_file
 secret_key: key_file

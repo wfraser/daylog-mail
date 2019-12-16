@@ -6,6 +6,7 @@ use std::io::{self, Read};
 use std::path::Path;
 
 const PREFIX: &str = "daylog.1";
+const SECRET_KEY_LEN: usize = 32;
 
 fn base64_config() -> base64::Config {
     base64::Config::new(base64::CharacterSet::UrlSafe, false)
@@ -19,8 +20,8 @@ fn base64_encode(bytes: &[u8]) -> String {
     base64::encode_config(bytes, base64_config())
 }
 
-pub fn read_secret_key(path: &Path) -> io::Result<[u8; 32]> {
-    let mut key = [0u8; 32];
+pub fn read_secret_key(path: &Path) -> io::Result<[u8; SECRET_KEY_LEN]> {
+    let mut key = [0u8; SECRET_KEY_LEN];
     let mut file = File::open(path)?;
     file.read_exact(&mut key)?;
     Ok(key)
@@ -30,7 +31,7 @@ pub fn is_our_message_id(s: &str) -> bool {
     s.starts_with(PREFIX)
 }
 
-pub fn gen_message_id(username: &str, date: NaiveDate, key_bytes: [u8; 32]) -> Result<String, failure::Error> {
+pub fn gen_message_id(username: &str, date: NaiveDate, key_bytes: [u8; SECRET_KEY_LEN]) -> Result<String, failure::Error> {
     let plaintext = format!("{}.{}", username, date.format("%Y-%m-%d"));
 
     let key = aead_key(key_bytes);
@@ -42,7 +43,7 @@ pub fn gen_message_id(username: &str, date: NaiveDate, key_bytes: [u8; 32]) -> R
     Ok(format!("{}.{}.{}", PREFIX, nonce.base64(), base64_encode(&encrypted)))
 }
 
-pub fn verify_message_id(message_id: &str, key_bytes: [u8; 32]) -> Result<(String, String), failure::Error> {
+pub fn verify_message_id(message_id: &str, key_bytes: [u8; SECRET_KEY_LEN]) -> Result<(String, String), failure::Error> {
     let mut parts = message_id.split('@').next().unwrap().split('.');
     let mut extract = || parts.next().ok_or_else(|| failure::err_msg("not enough parts"));
 
@@ -130,7 +131,7 @@ impl TimeNonce {
     }
 }
 
-fn aead_key(key_bytes: [u8; 32]) -> aead::LessSafeKey {
+fn aead_key(key_bytes: [u8; SECRET_KEY_LEN]) -> aead::LessSafeKey {
     use ring::aead::*;
     let algorithm = &CHACHA20_POLY1305;
     LessSafeKey::new(UnboundKey::new(algorithm, &key_bytes)

@@ -3,6 +3,7 @@ use failure::ResultExt;
 use rusqlite::{named_params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_rusqlite::{columns_from_statement, from_row_with_columns};
+use std::str::FromStr;
 use std::path::Path;
 
 pub struct Database {
@@ -13,6 +14,8 @@ impl Database {
     pub fn open(path: &Path) -> Result<Self, failure::Error> {
         let db = rusqlite::Connection::open(path)
             .with_context(|e| format!("failed to open SQLite database {:?}: {}", path, e))?;
+
+        // TODO: schema upgrades
 
         db.execute("CREATE TABLE IF NOT EXISTS entries (\
             id INTEGER PRIMARY KEY NOT NULL,\
@@ -32,14 +35,9 @@ impl Database {
             username STRING UNIQUE NOT NULL,\
             email STRING NOT NULL,\
             timezone STRING NOT NULL,\
-            email_time_utc STRING NOT NULL\
+            email_time_local STRING NOT NULL\
         )", rusqlite::NO_PARAMS)
             .with_context(|e| format!("failed to create 'users' database table: {}", e))?;
-
-        db.execute("CREATE INDEX IF NOT EXISTS idx_emailtime_userid ON users (\
-            email_time_utc, id\
-        )", rusqlite::NO_PARAMS)
-            .with_context(|e| format!("failed to create index on 'users' database table: {}", e))?;
 
         Ok(Self {
             db,
@@ -80,6 +78,7 @@ impl Database {
         Ok(())
     }
 
+    /*
     pub fn get_next_send_time(&self, from_time: DaylogTime) -> Result<Option<DaylogTime>, failure::Error> {
         let next_time: Option<String> = self.db.query_row_named(
             "SELECT email_time_utc FROM users WHERE email_time_utc >= :from_time ORDER BY email_time_utc ASC LIMIT 1",
@@ -103,8 +102,37 @@ impl Database {
         let columns = columns_from_statement(&stmt);
         Ok(UsersBySendTimeQuery { db: self, stmt, columns })
     }
+    */
+
+    pub fn get_all_users(&self) -> Result<Users, failure::Error> {
+        let mut users = vec![];
+        let mut stmt = self.db.prepare("SELECT * FROM users")?;
+        let columns = columns_from_statement(&stmt);
+        let mut rows = stmt.query(rusqlite::NO_PARAMS)?;
+        while let Some(row) = rows.next()? {
+            let user_raw: UserRaw = from_row_with_columns(row, &columns)
+                .with_context(|e| format!("failed to deserialize user: {}", e))?;
+            let tz = chrono_tz::Tz::from_str(&user_raw.timezone)
+                .map_err(|e| {
+                    failure::err_msg(format!("failed to parse timezone {:?} for user {}: {}",
+                        user_raw.timezone, user_raw.username, e))
+                })?;
+            let time = DaylogTime::parse(&user_raw.email_time_local)
+                .with_context(|e| format!("bogus email time {:?} for user {}: {}",
+                    user_raw.email_time_local, user_raw.username, e))?;
+            users.push(User {
+                id: user_raw.id.expect("missing user ID from database row"),
+                username: user_raw.username,
+                email: user_raw.email,
+                timezone: tz,
+                email_time_local: time,
+            });
+        }
+        Ok(Users::new(users))
+    }
 }
 
+/*
 pub struct UsersBySendTimeQuery<'db> {
     db: &'db Database,
     stmt: rusqlite::Statement<'db>,
@@ -146,14 +174,38 @@ impl<'stmt> Iterator for UsersQueryResult<'stmt> {
             })
     }
 }
+*/
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct User {
+pub struct UserRaw {
     pub id: Option<i64>,
     pub username: String,
     pub email: String,
     pub timezone: String,
-    pub email_time_utc: String,
+    pub email_time_local: String,
+}
+
+#[derive(Debug)]
+pub struct User {
+    pub id: i64,
+    pub username: String,
+    pub email: String,
+    pub timezone: chrono_tz::Tz,
+    pub email_time_local: DaylogTime,
+}
+
+pub struct Users {
+    vec: Vec<User>,
+}
+
+impl Users {
+    pub fn new(users: Vec<User>) -> Self {
+        Self { vec: users }
+    }
+
+    pub fn next_from_time(&self, time: DaylogTime) -> Option<(DaylogTime, Vec<User>)> {
+        unimplemented!()
+    }
 }
 
 trait RusqliteResultExt {

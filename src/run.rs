@@ -136,13 +136,13 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
 
     info!("process ID: {}", std::process::id());
 
+    let mut users = db.get_all_users()?;
     let mut now = SleepTime::Today(DaylogTime::now());
 
     while !sigterm_flag.load(Ordering::SeqCst) {
-        let mut users_query = db.get_users_to_send()?;
 
         let (next_time, users) = match now {
-            SleepTime::Today(time) => match users_query.next_from_time(time)? {
+            SleepTime::Today(time) => match users.next_from_time(time) {
                 Some((next_time, users)) => {
                     info!("sleep until {}", next_time);
                     (SleepTime::Today(next_time), users)
@@ -153,7 +153,7 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
                     continue;
                 }
             }
-            SleepTime::Tomorrow(time) => match users_query.next_from_time(time)? {
+            SleepTime::Tomorrow(time) => match users.next_from_time(time) {
                 Some((next_time, users)) => {
                     info!("sleep until tomorrow, {}", next_time);
                     (SleepTime::Tomorrow(next_time), users)
@@ -179,18 +179,18 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
         for user in users {
             info!("sending to {:?}", user);
             if !args.dry_run {
-                let tz: chrono_tz::Tz = match std::str::FromStr::from_str(user.timezone.as_str()) {
+                /*let tz: chrono_tz::Tz = match std::str::FromStr::from_str(user.timezone.as_str()) {
                     Ok(tz) => tz,
                     Err(e) => {
                         error!("failed to parse {:?} as timezone (for user {:?}): {}",
                             user.timezone, user.username, e);
                         continue;
                     }
-                };
+                };*/
                 let result = crate::send::send(config, crate::SendArgs {
                     username: user.username.clone(),
                     email: user.email.clone(),
-                    timezone: tz,
+                    timezone: user.timezone,
                     date_override: None,
                 });
                 if let Err(e) = result {

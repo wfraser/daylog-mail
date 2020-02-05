@@ -1,9 +1,9 @@
-use crate::time::DaylogTime;
+use crate::user::{User, Users};
 use failure::ResultExt;
-use rusqlite::{named_params, OptionalExtension};
+use rusqlite::named_params;
 use serde::{Deserialize, Serialize};
 use serde_rusqlite::{columns_from_statement, from_row_with_columns};
-use std::str::FromStr;
+use std::convert::TryFrom;
 use std::path::Path;
 
 pub struct Database {
@@ -78,32 +78,6 @@ impl Database {
         Ok(())
     }
 
-    /*
-    pub fn get_next_send_time(&self, from_time: DaylogTime) -> Result<Option<DaylogTime>, failure::Error> {
-        let next_time: Option<String> = self.db.query_row_named(
-            "SELECT email_time_utc FROM users WHERE email_time_utc >= :from_time ORDER BY email_time_utc ASC LIMIT 1",
-            named_params!{ ":from_time": from_time.to_string() },
-            |row| row.get(0),
-            )
-            .optional()
-            .with_context(|e| format!("failed to query next email send time from database: {}", e))?;
-        match next_time {
-            Some(ref time) => {
-                let parsed_time = DaylogTime::parse(time)
-                    .with_context(|e| format!("bad time from the database: {:?} because {}", time, e))?;
-                Ok(Some(parsed_time))
-            }
-            None => Ok(None)
-        }
-    }
-
-    pub fn get_users_to_send(&self) -> Result<UsersBySendTimeQuery<'_>, failure::Error> {
-        let stmt = self.db.prepare("SELECT * FROM users WHERE email_time_utc = :time")?;
-        let columns = columns_from_statement(&stmt);
-        Ok(UsersBySendTimeQuery { db: self, stmt, columns })
-    }
-    */
-
     pub fn get_all_users(&self) -> Result<Users, failure::Error> {
         let mut users = vec![];
         let mut stmt = self.db.prepare("SELECT * FROM users")?;
@@ -112,69 +86,11 @@ impl Database {
         while let Some(row) = rows.next()? {
             let user_raw: UserRaw = from_row_with_columns(row, &columns)
                 .with_context(|e| format!("failed to deserialize user: {}", e))?;
-            let tz = chrono_tz::Tz::from_str(&user_raw.timezone)
-                .map_err(|e| {
-                    failure::err_msg(format!("failed to parse timezone {:?} for user {}: {}",
-                        user_raw.timezone, user_raw.username, e))
-                })?;
-            let time = DaylogTime::parse(&user_raw.email_time_local)
-                .with_context(|e| format!("bogus email time {:?} for user {}: {}",
-                    user_raw.email_time_local, user_raw.username, e))?;
-            users.push(User {
-                id: user_raw.id.expect("missing user ID from database row"),
-                username: user_raw.username,
-                email: user_raw.email,
-                timezone: tz,
-                email_time_local: time,
-            });
+            users.push(User::try_from(user_raw)?);
         }
         Ok(Users::new(users))
     }
 }
-
-/*
-pub struct UsersBySendTimeQuery<'db> {
-    db: &'db Database,
-    stmt: rusqlite::Statement<'db>,
-    columns: Vec<String>,
-}
-
-impl<'db> UsersBySendTimeQuery<'db> {
-    pub fn for_time(&mut self, time: DaylogTime) -> Result<UsersQueryResult<'_>, failure::Error> {
-        let rows = self.stmt.query_named(
-            named_params!{ ":time": time.to_string() },
-            )?;
-        Ok(UsersQueryResult { rows, columns: &self.columns })
-    }
-
-    pub fn next_from_time(&mut self, curr_time: DaylogTime) -> Result<Option<(DaylogTime, UsersQueryResult<'_>)>, failure::Error> {
-        match self.db.get_next_send_time(curr_time)? {
-            Some(time) => {
-                Ok(Some((time, self.for_time(time)?)))
-            }
-            None => Ok(None),
-        }
-    }
-}
-
-pub struct UsersQueryResult<'stmt> {
-    rows: rusqlite::Rows<'stmt>,
-    columns: &'stmt [String],
-}
-
-impl<'stmt> Iterator for UsersQueryResult<'stmt> {
-    type Item = User;
-    fn next(&mut self) -> Option<Self::Item> {
-        // TODO: should this return Result instead of panicking?
-        let columns = &self.columns;
-        self.rows.next().expect("failed to advance")
-            .map(|row| {
-                from_row_with_columns::<User>(row, columns)
-                    .expect("failed to deserialize database row to User")
-            })
-    }
-}
-*/
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct UserRaw {
@@ -183,29 +99,6 @@ pub struct UserRaw {
     pub email: String,
     pub timezone: String,
     pub email_time_local: String,
-}
-
-#[derive(Debug)]
-pub struct User {
-    pub id: i64,
-    pub username: String,
-    pub email: String,
-    pub timezone: chrono_tz::Tz,
-    pub email_time_local: DaylogTime,
-}
-
-pub struct Users {
-    vec: Vec<User>,
-}
-
-impl Users {
-    pub fn new(users: Vec<User>) -> Self {
-        Self { vec: users }
-    }
-
-    pub fn next_from_time(&self, time: DaylogTime) -> Option<(DaylogTime, Vec<User>)> {
-        unimplemented!()
-    }
 }
 
 trait RusqliteResultExt {

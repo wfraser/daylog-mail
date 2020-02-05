@@ -9,6 +9,7 @@ mod maildir;
 mod run;
 mod send;
 mod time;
+mod user;
 
 use chrono::NaiveDate;
 use crate::config::Config;

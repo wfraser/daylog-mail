@@ -136,32 +136,19 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
 
     info!("process ID: {}", std::process::id());
 
-    let mut users = db.get_all_users()?;
-    let mut now = SleepTime::Today(DaylogTime::now());
+    let users = db.get_all_users()?;
+    let (mut today, mut now) = DaylogTime::now(); // the only time we check actual clock
 
     while !sigterm_flag.load(Ordering::SeqCst) {
 
-        let (next_time, users) = match now {
-            SleepTime::Today(time) => match users.next_from_time(time) {
-                Some((next_time, users)) => {
-                    info!("sleep until {}", next_time);
-                    (SleepTime::Today(next_time), users)
-                }
-                None => {
-                    info!("no more users today; checking tomorrow");
-                    now = SleepTime::Tomorrow(DaylogTime::zero());
-                    continue;
-                }
+        let (next_time, users) = match users.next_from_time(today, now) {
+            Some((next, users)) => {
+                info!("sleep until {}", next);
+                (next, users)
             }
-            SleepTime::Tomorrow(time) => match users.next_from_time(time) {
-                Some((next_time, users)) => {
-                    info!("sleep until tomorrow, {}", next_time);
-                    (SleepTime::Tomorrow(next_time), users)
-                }
-                None => {
-                    error!("no users are configured!");
-                    return Ok(());
-                }
+            None => {
+                error!("no users configured");
+                return Ok(());
             }
         };
 
@@ -179,14 +166,6 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
         for user in users {
             info!("sending to {:?}", user);
             if !args.dry_run {
-                /*let tz: chrono_tz::Tz = match std::str::FromStr::from_str(user.timezone.as_str()) {
-                    Ok(tz) => tz,
-                    Err(e) => {
-                        error!("failed to parse {:?} as timezone (for user {:?}): {}",
-                            user.timezone, user.username, e);
-                        continue;
-                    }
-                };*/
                 let result = crate::send::send(config, crate::SendArgs {
                     username: user.username.clone(),
                     email: user.email.clone(),
@@ -202,9 +181,17 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
         // Don't actually use the current time; in case sending takes longer than 1 minute, we want
         // to only advance to the next minute for checking the database.
         now = match next_time {
-            SleepTime::Today(time) | SleepTime::Tomorrow(time) => {
+            SleepTime::Today(time) => {
+                let time = time.succ();
+                if time == DaylogTime::zero() {
+                    today = today.succ();
+                }
+                time
+            }
+            SleepTime::Tomorrow(time) => {
                 // we already slept until tomorrow, so now it's today no matter what
-                SleepTime::Today(time.succ())
+                today = today.succ();
+                time.succ()
             }
         };
     }

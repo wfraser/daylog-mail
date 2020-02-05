@@ -1,6 +1,7 @@
 use chrono::prelude::*;
 use chrono::Duration;
 use failure::bail;
+use std::cmp::Ordering;
 
 /// Daylog operates in UTC, with minute resolution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -10,9 +11,9 @@ pub struct DaylogTime {
 }
 
 impl DaylogTime {
-    pub fn now() -> Self {
-        let time = Utc::now().time();
-        Self::from(time)
+    pub fn now() -> (Date<Utc>, Self) {
+        let now = Utc::now();
+        (now.date(), Self::from(now.time()))
     }
 
     #[cfg(test)]
@@ -41,7 +42,7 @@ impl DaylogTime {
         Self { hour, minute }
     }
 
-    fn as_naivetime(self) -> NaiveTime {
+    pub fn as_naivetime(self) -> NaiveTime {
         NaiveTime::from_hms(
             u32::from(self.hour),
             u32::from(self.minute),
@@ -124,8 +125,24 @@ impl std::fmt::Display for DaylogTime {
     }
 }
 
+impl Ord for DaylogTime {
+    fn cmp(&self, other: &DaylogTime) -> Ordering {
+        match self.hour.cmp(&other.hour) {
+            Ordering::Greater => Ordering::Greater,
+            Ordering::Less => Ordering::Less,
+            Ordering::Equal => self.minute.cmp(&other.minute),
+        }
+    }
+}
+
+impl PartialOrd for DaylogTime {
+    fn partial_cmp(&self, other: &DaylogTime) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 /// Represents a time to be waited until.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum SleepTime {
     Tomorrow(DaylogTime),
     Today(DaylogTime),
@@ -143,6 +160,35 @@ impl SleepTime {
                 time.duration_from(earlier_time)
             }
         }
+    }
+}
+
+impl std::fmt::Display for SleepTime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SleepTime::Today(time) => write!(f, "{} today", time),
+            SleepTime::Tomorrow(time) => write!(f, "{} tomorrow", time),
+        }
+    }
+}
+
+impl Ord for SleepTime {
+    fn cmp(&self, other: &SleepTime) -> Ordering {
+        match (self, other) {
+            (SleepTime::Today(a), SleepTime::Today(b))
+                | (SleepTime::Tomorrow(a), SleepTime::Tomorrow(b)) =>
+            {
+                a.cmp(b)
+            }
+            (SleepTime::Tomorrow(_), SleepTime::Today(_)) => Ordering::Greater,
+            (SleepTime::Today(_), SleepTime::Tomorrow(_)) => Ordering::Less,
+        }
+    }
+}
+
+impl PartialOrd for SleepTime {
+    fn partial_cmp(&self, other: &SleepTime) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 

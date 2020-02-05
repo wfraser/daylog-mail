@@ -2,7 +2,7 @@ use chrono::NaiveDate;
 use crate::{SendArgs, todays_date};
 use crate::config::Config;
 use crate::message_id::{self, read_secret_key};
-use failure::ResultExt;
+use failure::{format_err, ResultExt};
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
 
@@ -22,8 +22,10 @@ pub fn send(config: &Config, args: SendArgs) -> Result<(), failure::Error> {
     let msgid = message_id::gen_message_id(&args.username, date, key_bytes)
         .with_context(|e| format!("failed to generate message ID: {}", e))?;
 
-    let hostname = hostname::get_hostname()
-        .ok_or_else(|| failure::err_msg("failed to get hostname"))?;
+    let hostname = hostname::get()
+        .with_context(|e| format!("failed to get hostname: {}", e))?
+        .into_string()
+        .map_err(|bad| format_err!("invalid hostname: {:?}", bad))?;
 
     let mut child = Command::new("sendmail")
         .arg("-i")

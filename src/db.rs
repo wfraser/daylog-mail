@@ -1,6 +1,6 @@
 use crate::user::{User, Users};
 use failure::ResultExt;
-use rusqlite::named_params;
+use rusqlite::{named_params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_rusqlite::{columns_from_statement, from_row_with_columns};
 use std::convert::TryFrom;
@@ -89,6 +89,20 @@ impl Database {
             users.push(User::try_from(user_raw)?);
         }
         Ok(Users::new(users))
+    }
+
+    pub fn get_entry(&self, username: &str, date: &str) -> Result<Option<String>, failure::Error> {
+        self.db.prepare("SELECT body FROM entries \
+                WHERE username = :username \
+                AND date = :date")
+            .context("failed to prepare entry query")?
+            .query_row_named(
+                named_params!{ ":username": username, ":date": date },
+                |row| row.get::<_, String>(0)
+            )
+            .optional()
+            .context("failed to query entry")
+            .map_err(Into::into)
     }
 }
 

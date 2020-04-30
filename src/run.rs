@@ -171,6 +171,7 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
                     email: user.email.clone(),
                     timezone: user.timezone,
                     date_override: None,
+                    dry_run: args.dry_run,
                 });
                 if let Err(e) = result {
                     error!("failed to send to {:?}: {}", user, e);

@@ -68,7 +68,11 @@ pub struct SendArgs {
 
     /// Send email for the given date instead of today.
     #[structopt(long("date"))]
-    date_override: Option<String>
+    date_override: Option<String>,
+
+    /// Print the email to stdout, but do not send it.
+    #[structopt(long("dry-run"))]
+    dry_run: bool,
 }
 
 #[derive(StructOpt, Debug)]

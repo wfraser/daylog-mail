@@ -2,7 +2,6 @@ use crate::user::{User, Users};
 use failure::ResultExt;
 use rusqlite::{named_params, OptionalExtension};
 use serde::{Deserialize, Serialize};
-use serde_rusqlite::{columns_from_statement, from_row_with_columns};
 use std::convert::TryFrom;
 use std::path::Path;
 
@@ -79,27 +78,26 @@ impl Database {
     }
 
     pub fn get_all_users(&self) -> Result<Users, failure::Error> {
-        let mut users = vec![];
-        let mut stmt = self.db.prepare("SELECT * FROM users")?;
-        let columns = columns_from_statement(&stmt);
-        let mut rows = stmt.query(rusqlite::NO_PARAMS)?;
-        while let Some(row) = rows.next()? {
-            let user_raw: UserRaw = from_row_with_columns(row, &columns)
-                .with_context(|e| format!("failed to deserialize user: {}", e))?;
-            users.push(User::try_from(user_raw)?);
-        }
-        Ok(Users::new(users))
+        serde_rusqlite::from_rows::<UserRaw>(
+            self.db.prepare("SELECT * FROM users")?
+                .query(rusqlite::NO_PARAMS)?
+        )
+        .try_fold(vec![], |mut vec, u| {
+            vec.push(User::try_from(u?)?);
+            Ok(vec)
+        })
+        .map(Users::new)
     }
 
     pub fn get_user(&self, username: &str) -> Result<User, failure::Error> {
-        Ok(serde_rusqlite::from_rows::<UserRaw>(
+        serde_rusqlite::from_rows::<UserRaw>(
             self.db.prepare("SELECT * FROM users WHERE username = :username")?
                 .query_named(named_params!{ ":username": username })?
-            )
-            .next()
-            .transpose()?
-            .ok_or_else(|| failure::format_err!("no such user {}", username))
-            .and_then(User::try_from)?)
+        )
+        .next()
+        .transpose()?
+        .ok_or_else(|| failure::format_err!("no such user {}", username))
+        .and_then(User::try_from)
     }
 
     pub fn get_entry(&self, username: &str, date: &str) -> Result<Option<String>, failure::Error> {

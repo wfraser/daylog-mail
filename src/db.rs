@@ -132,15 +132,12 @@ trait RusqliteResultExt {
 
 impl<T> RusqliteResultExt for Result<T, rusqlite::Error> {
     fn is_unique_constraint_error(&self) -> bool {
-        match self {
-            Err(rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error {
-                        code: rusqlite::ErrorCode::ConstraintViolation,
-                        extended_code: 2067, // SQLITE_CONSTRAINT_UNIQUE
-                    },
-                    ..
-            )) => true,
-            _ => false,
-        }
+        matches!(self, Err(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error {
+                code: rusqlite::ErrorCode::ConstraintViolation,
+                extended_code: 2067, // SQLITE_CONSTRAINT_UNIQUE
+            },
+            ..
+        )))
     }
 }

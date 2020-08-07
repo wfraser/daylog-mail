@@ -168,8 +168,7 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
             if !args.dry_run {
                 let result = crate::send::send(config, crate::SendArgs {
                     username: user.username.clone(),
-                    email: user.email.clone(),
-                    timezone: user.timezone,
+                    email_override: None,
                     date_override: None,
                     dry_run: args.dry_run,
                 });

@@ -12,12 +12,15 @@ pub fn send(config: &Config, args: SendArgs) -> Result<(), failure::Error> {
         .with_context(|e|
             format!("failed to read secret key {:?}: {}", config.secret_key_path, e))?;
 
+    let db = Database::open(&config.database_path)?;
+    let user = db.get_user(&args.username)?;
+
     let date = match args.date_override {
         Some(ref date) => {
             NaiveDate::parse_from_str(date, "%Y-%m-%d")
                 .with_context(|e| format!("Invalid date specified ({:?}): {}", date, e))?
         }
-        None => todays_date(&args.timezone),
+        None => todays_date(&user.timezone),
     };
 
     let msgid = message_id::gen_message_id(&args.username, date, key_bytes)
@@ -28,10 +31,12 @@ pub fn send(config: &Config, args: SendArgs) -> Result<(), failure::Error> {
         .into_string()
         .map_err(|bad| format_err!("invalid hostname: {:?}", bad))?;
 
-    let db = Database::open(&config.database_path)?;
+    let email = args.email_override
+        .unwrap_or(user.email);
 
     if args.dry_run {
-        write_email(io::stdout(), &config, &args, &db, date, &format!("{}@{}", msgid, hostname))
+        write_email(io::stdout(), &config, &args.username, &email, &db, date,
+                    &format!("{}@{}", msgid, hostname))
             .with_context(|e| format!("failed to write email: {}", e))?;
         return Ok(());
     }
@@ -40,7 +45,7 @@ pub fn send(config: &Config, args: SendArgs) -> Result<(), failure::Error> {
         .arg("-i")
         .arg("-f")
         .arg(&config.return_addr)
-        .arg(&args.email)
+        .arg(&email)
         .stdin(Stdio::piped())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -48,8 +53,9 @@ pub fn send(config: &Config, args: SendArgs) -> Result<(), failure::Error> {
         .with_context(|e| format!("failed to run 'sendmail' command: {}", e))?;
 
     {
-        let stdin = child.stdin.as_mut().expect("failed to get 'sendmail' command stdin");
-        write_email(stdin, &config, &args, &db, date, &format!("{}@{}", msgid, hostname))
+        let sendmail = child.stdin.as_mut().expect("failed to get 'sendmail' command stdin");
+        write_email(sendmail, &config, &args.username, &email, &db, date,
+                    &format!("{}@{}", msgid, hostname))
             .with_context(|e| format!("failed to write email: {}", e))?;
     }
 
@@ -60,11 +66,19 @@ pub fn send(config: &Config, args: SendArgs) -> Result<(), failure::Error> {
 }
 
 #[allow(clippy::write_with_newline)]
-fn write_email(mut w: impl Write, config: &Config, args: &SendArgs, db: &Database, date: NaiveDate, msgid: &str) -> io::Result<()> {
+fn write_email(
+    mut w: impl Write,
+    config: &Config,
+    username: &str,
+    email: &str,
+    db: &Database,
+    date: NaiveDate,
+    msgid: &str,
+) -> Result<(), failure::Error> {
     write!(w, "Date: {}\r\n", chrono::Utc::now().to_rfc2822())?;
     write!(w, "Subject: Daylog for {}\r\n", date.format("%Y-%m-%d"))?;
     write!(w, "From: Daylog <{}>\r\n", config.return_addr)?;
-    write!(w, "To: <{}>\r\n", args.email)?;
+    write!(w, "To: <{}>\r\n", email)?;
     write!(w, "Message-ID: <{}>\r\n", msgid)?;
     write!(w, "\r\n")?;
     write!(w, "What'd you do today, {}?\r\n", date.format("%A, %B %e, %Y"))?; // Sunday, July 8, 2001
@@ -123,13 +137,13 @@ fn write_email(mut w: impl Write, config: &Config, args: &SendArgs, db: &Databas
             None => continue,
         };
 
-        match db.get_entry(&args.username, &past_date) {
+        match db.get_entry(username, &past_date) {
             Ok(Some(body)) => {
                 past_events.push((label, body));
             },
             Ok(None) => (),
             Err(e) => {
-                eprintln!("error querying database for {}/{}: {}", args.username, past_date, e);
+                eprintln!("error querying database for {}/{}: {}", username, past_date, e);
             }
         }
     }

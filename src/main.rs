@@ -58,13 +58,9 @@ pub struct SendArgs {
     #[structopt(long)]
     username: String,
 
-    /// Email address to send to.
-    #[structopt(long)]
-    email: String,
-
-    /// Timezone the user is in; this is used to determine the correct value for today's date.
-    #[structopt(long, default_value = "UTC")]
-    timezone: chrono_tz::Tz,
+    /// Different email address to send to.
+    #[structopt(long("email"))]
+    email_override: Option<String>,
 
     /// Send email for the given date instead of today.
     #[structopt(long("date"))]

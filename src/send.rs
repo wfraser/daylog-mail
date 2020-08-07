@@ -7,23 +7,52 @@ use failure::{format_err, ResultExt};
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
 
-pub fn send(config: &Config, args: SendArgs) -> Result<(), failure::Error> {
+// This is used in two ways: from the command line, and internally.
+pub enum Mode {
+    // Use configuration from the command line and read the user from the database.
+    Args(SendArgs),
+
+    // User already loaded from the database.
+    User(crate::user::User),
+}
+
+pub fn send(config: &Config, mode: Mode) -> Result<(), failure::Error> {
     let key_bytes = read_secret_key(&config.secret_key_path)
         .with_context(|e|
             format!("failed to read secret key {:?}: {}", config.secret_key_path, e))?;
 
     let db = Database::open(&config.database_path)?;
-    let user = db.get_user(&args.username)?;
 
-    let date = match args.date_override {
-        Some(ref date) => {
-            NaiveDate::parse_from_str(date, "%Y-%m-%d")
-                .with_context(|e| format!("Invalid date specified ({:?}): {}", date, e))?
+    let username: String;
+    let email: String;
+    let date: NaiveDate;
+    let dry_run: bool;
+
+    match mode {
+        Mode::User(user) => {
+            username = user.username;
+            email = user.email;
+            date = todays_date(&user.timezone);
+            dry_run = false;
         }
-        None => todays_date(&user.timezone),
-    };
+        Mode::Args(args) => {
+            username = args.username;
 
-    let msgid = message_id::gen_message_id(&args.username, date, key_bytes)
+            let user = db.get_user(&username)?;
+
+            email = args.email_override.unwrap_or(user.email);
+            date = match args.date_override {
+                Some(ref date) => {
+                    NaiveDate::parse_from_str(date, "%Y-%m-%d")
+                        .with_context(|e| format!("Invalid date specified ({:?}): {}", date, e))?
+                }
+                None => todays_date(&user.timezone),
+            };
+            dry_run = args.dry_run;
+        }
+    }
+
+    let msgid = message_id::gen_message_id(&username, date, key_bytes)
         .with_context(|e| format!("failed to generate message ID: {}", e))?;
 
     let hostname = hostname::get()
@@ -31,11 +60,8 @@ pub fn send(config: &Config, args: SendArgs) -> Result<(), failure::Error> {
         .into_string()
         .map_err(|bad| format_err!("invalid hostname: {:?}", bad))?;
 
-    let email = args.email_override
-        .unwrap_or(user.email);
-
-    if args.dry_run {
-        write_email(io::stdout(), &config, &args.username, &email, &db, date,
+    if dry_run {
+        write_email(io::stdout(), &config, &username, &email, &db, date,
                     &format!("{}@{}", msgid, hostname))
             .with_context(|e| format!("failed to write email: {}", e))?;
         return Ok(());
@@ -54,7 +80,7 @@ pub fn send(config: &Config, args: SendArgs) -> Result<(), failure::Error> {
 
     {
         let sendmail = child.stdin.as_mut().expect("failed to get 'sendmail' command stdin");
-        write_email(sendmail, &config, &args.username, &email, &db, date,
+        write_email(sendmail, &config, &username, &email, &db, date,
                     &format!("{}@{}", msgid, hostname))
             .with_context(|e| format!("failed to write email: {}", e))?;
     }

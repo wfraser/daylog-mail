@@ -166,12 +166,7 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
         for user in users {
             info!("sending to {:?}", user);
             if !args.dry_run {
-                let result = crate::send::send(config, crate::SendArgs {
-                    username: user.username.clone(),
-                    email_override: None,
-                    date_override: None,
-                    dry_run: args.dry_run,
-                });
+                let result = crate::send::send(config, crate::send::Mode::User(user.clone()));
                 if let Err(e) = result {
                     error!("failed to send to {:?}: {}", user, e);
                 }

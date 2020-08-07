@@ -97,7 +97,7 @@ fn main() -> Result<(), Error> {
 
     match args.op {
         Operation::Ingest(op) => ingest::ingest(&args.config, op),
-        Operation::Send(op) => send::send(&args.config, op),
+        Operation::Send(op) => send::send(&args.config, send::Mode::Args(op)),
         Operation::Run(op) => run::run(&args.config, op),
         Operation::MailTransform(op) => {
             let mut raw_input = vec![];

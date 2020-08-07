@@ -38,12 +38,11 @@ pub struct Mail {
 impl Mail {
     pub fn parse(parsed: ParsedMail) -> Result<Self, Error> {
         let msgid = parsed.headers.get_first_value("message-id")
-            .context("message has invalid Message-ID")?
+            .ok_or_else(|| failure::err_msg("message lacks a Message-ID"))
             .map(trim_msgid)
-            .ok_or_else(|| failure::err_msg("message lacks a Message-ID"))?;
+            .context("message has invalid Message-ID")?;
 
         let reply_to = parsed.headers.get_first_value("References")
-            .context("failed to parse References header")?
             .unwrap_or_else(String::new)
             .split_ascii_whitespace()
             .map(trim_msgid)
@@ -58,7 +57,6 @@ impl Mail {
             let mut found_something = false;
             for part in parsed.subparts {
                 let disposition = part.get_content_disposition()
-                    .context("unable to parse context disposition for a message subpart")?
                     .disposition;
                 let mimetype = &part.ctype.mimetype;
                 if disposition == mailparse::DispositionType::Inline && mimetype == "text/plain" {

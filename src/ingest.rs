@@ -108,7 +108,7 @@ fn process_body(input: &str) -> String {
         .filter(|line| !line.starts_with('>'))
         .fold(String::new(), |mut acc, line| {
             acc.push('\n');
-            acc += &line;
+            acc += line;
             acc
         })
         .trim()

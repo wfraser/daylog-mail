@@ -61,7 +61,7 @@ pub fn send(config: &Config, mode: Mode) -> Result<(), failure::Error> {
         .map_err(|bad| format_err!("invalid hostname: {:?}", bad))?;
 
     if dry_run {
-        write_email(io::stdout(), &config, &username, &email, &db, date,
+        write_email(io::stdout(), config, &username, &email, &db, date,
                     &format!("{}@{}", msgid, hostname))
             .with_context(|e| format!("failed to write email: {}", e))?;
         return Ok(());
@@ -80,7 +80,7 @@ pub fn send(config: &Config, mode: Mode) -> Result<(), failure::Error> {
 
     {
         let sendmail = child.stdin.as_mut().expect("failed to get 'sendmail' command stdin");
-        write_email(sendmail, &config, &username, &email, &db, date,
+        write_email(sendmail, config, &username, &email, &db, date,
                     &format!("{}@{}", msgid, hostname))
             .with_context(|e| format!("failed to write email: {}", e))?;
     }

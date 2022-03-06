@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
@@ -17,13 +17,13 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn try_from_arg(os_str: &OsStr) -> Result<Self, OsString> {
+    pub fn try_from_arg(os_str: &OsStr) -> Result<Self, String> {
         let config_path = std::fs::canonicalize(&Path::new(os_str))
-            .map_err(|e| OsString::from(format!("Unable to canonicalize path {:?}: {}", os_str, e)))?;
+            .map_err(|e| format!("Unable to canonicalize path {:?}: {}", os_str, e))?;
         let file = File::open(&config_path)
-            .map_err(|e| OsString::from(format!("Error opening config file {:?}: {}", config_path, e)))?;
+            .map_err(|e| format!("Error opening config file {:?}: {}", config_path, e))?;
         let mut config: Self = serde_yaml::from_reader(file)
-            .map_err(|e| OsString::from(format!("Error parsing config file {:?}: {}", config_path, e)))?;
+            .map_err(|e| format!("Error parsing config file {:?}: {}", config_path, e))?;
         config.resolve_paths(config_path.parent().unwrap());
         Ok(config)
     }

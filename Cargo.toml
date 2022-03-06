@@ -2,6 +2,7 @@
 name = "daylog-email"
 version = "0.2.2"
 authors = ["Bill Fraser <wfraser@codewise.org>"]
+description = "Daylog is a daily journal keeper, operating over email."
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -10,6 +11,7 @@ edition = "2018"
 base64 = "0.12"
 chrono = "0.4.9"
 chrono-tz = "0.5.1"
+clap = { version = "3", features = ["cargo", "derive"] }
 failure = "0.1.5"
 hostname = "0.3"
 log = "0.4.8"
@@ -24,4 +26,3 @@ serde_rusqlite = "0.25"
 serde_yaml = "0.8.11"
 signal-hook = "0.1.10"
 stderrlog = "0.4.1"
-structopt = "0.3.2"

@@ -12,23 +12,24 @@ mod time;
 mod user;
 
 use chrono::NaiveDate;
+use clap::Parser;
 use crate::config::Config;
 use failure::Error;
-use structopt::StructOpt;
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
+#[clap(version, author, about)]
 struct Args {
-    #[structopt(parse(try_from_os_str = Config::try_from_arg))]
+    #[clap(parse(try_from_os_str = Config::try_from_arg))]
     config: Config,
 
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     op: Operation,
 
-    #[structopt(parse(from_occurrences), short("v"), long)]
+    #[clap(parse(from_occurrences), short('v'), long)]
     verbose: usize,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 enum Operation {
     /// Process incoming mail
     Ingest(IngestArgs),
@@ -45,48 +46,48 @@ enum Operation {
     MailTransform(MailTransformArgs),
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub struct IngestArgs {
     /// show what would be done, but do not make any changes
-    #[structopt(long("dry-run"))]
+    #[clap(long)]
     dry_run: bool,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub struct SendArgs {
     /// Username
-    #[structopt(long)]
+    #[clap(long)]
     username: String,
 
     /// Different email address to send to.
-    #[structopt(long("email"))]
+    #[clap(long("email"))]
     email_override: Option<String>,
 
     /// Send email for the given date instead of today.
-    #[structopt(long("date"))]
+    #[clap(long("date"))]
     date_override: Option<String>,
 
     /// Print the email to stdout, but do not send it.
-    #[structopt(long("dry-run"))]
+    #[clap(long)]
     dry_run: bool,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub struct RunArgs {
     /// log what would be done, but do not make any changes
-    #[structopt(long("dry-run"))]
+    #[clap(long)]
     dry_run: bool,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub struct MailTransformArgs {
     /// Print the plain-text mail body without applying any transformations on it.
-    #[structopt(long("pre-transform"))]
+    #[clap(long)]
     pre_transform: bool,
 }
 
 fn main() -> Result<(), Error> {
-    let args = Args::from_args();
+    let args = Args::parse();
 
     stderrlog::new()
         .module(module_path!())

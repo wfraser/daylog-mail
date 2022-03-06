@@ -43,7 +43,7 @@ impl Mail {
             .context("message has invalid Message-ID")?;
 
         let reply_to = parsed.headers.get_first_value("References")
-            .unwrap_or_else(String::new)
+            .unwrap_or_default()
             .split_ascii_whitespace()
             .map(trim_msgid)
             .collect::<Vec<_>>();

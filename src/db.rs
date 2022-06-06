@@ -21,12 +21,12 @@ impl Database {
             username STRING NOT NULL,\
             date STRING NOT NULL,\
             body STRING NOT NULL\
-        )", rusqlite::NO_PARAMS)
+        )", [])
             .with_context(|e| format!("failed to create 'entries' database table: {}", e))?;
 
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_username_date ON entries (\
             username, date\
-        )", rusqlite::NO_PARAMS)
+        )", [])
             .with_context(|e| format!("failed to create index on 'entries' database table: {}", e))?;
 
         db.execute("CREATE TABLE IF NOT EXISTS users (\
@@ -35,7 +35,7 @@ impl Database {
             email STRING NOT NULL,\
             timezone STRING NOT NULL,\
             email_time_local STRING NOT NULL\
-        )", rusqlite::NO_PARAMS)
+        )", [])
             .with_context(|e| format!("failed to create 'users' database table: {}", e))?;
 
         Ok(Self {
@@ -46,7 +46,7 @@ impl Database {
     pub fn add_entry(&mut self, username: &str, date: &str, body: &str) -> Result<(), failure::Error> {
         let tx = self.db.transaction()?;
 
-        let insert_result = tx.execute_named(
+        let insert_result = tx.execute(
             "INSERT INTO entries (username, date, body) \
                 VALUES (:username, :date, :body)",
             named_params!{
@@ -56,7 +56,7 @@ impl Database {
             });
 
         if insert_result.is_unique_constraint_error() {
-            let (id, mut update_body): (i64, String) = tx.query_row_named(
+            let (id, mut update_body): (i64, String) = tx.query_row(
                 "SELECT id, body FROM entries WHERE username = :username AND date = :date",
                 named_params!{ ":username": username, ":date": date },
                 |row| Ok((row.get(0)?, row.get(1)?)),
@@ -64,7 +64,7 @@ impl Database {
             info!("updating existing row {}: {}/{}", id, username, date);
             update_body.push('\n');
             update_body +=  body;
-            tx.execute_named(
+            tx.execute(
                 "UPDATE entries SET body = :body WHERE id = :id",
                 named_params!{ ":body": update_body, ":id": id },
                 )
@@ -80,7 +80,7 @@ impl Database {
     pub fn get_all_users(&self) -> Result<Users, failure::Error> {
         serde_rusqlite::from_rows::<UserRaw>(
             self.db.prepare("SELECT * FROM users")?
-                .query(rusqlite::NO_PARAMS)?
+                .query([])?
         )
         .try_fold(vec![], |mut vec, u| {
             vec.push(User::try_from(u?)?);
@@ -92,7 +92,7 @@ impl Database {
     pub fn get_user(&self, username: &str) -> Result<User, failure::Error> {
         serde_rusqlite::from_rows::<UserRaw>(
             self.db.prepare("SELECT * FROM users WHERE username = :username")?
-                .query_named(named_params!{ ":username": username })?
+                .query(named_params!{ ":username": username })?
         )
         .next()
         .transpose()?
@@ -105,7 +105,7 @@ impl Database {
                 WHERE username = :username \
                 AND date = :date")
             .context("failed to prepare entry query")?
-            .query_row_named(
+            .query_row(
                 named_params!{ ":username": username, ":date": date },
                 |row| row.get::<_, String>(0)
             )

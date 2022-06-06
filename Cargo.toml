@@ -24,5 +24,5 @@ rusqlite = "0.27"
 serde = { version = "1.0", features = ["derive"] }
 serde_rusqlite = "0.30"
 serde_yaml = "0.8.11"
-signal-hook = "0.1.10"
+signal-hook = "0.3.14"
 stderrlog = "0.5.1"

@@ -7,6 +7,7 @@ use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::poll::{poll, PollFd, PollFlags};
 use nix::sys::socket::{send, MsgFlags};
+use signal_hook::consts::{SIGHUP, SIGTERM};
 use std::io::{self, Read};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::net::UnixStream;
@@ -24,7 +25,7 @@ fn handle_signal(signal: i32, sock: UnixStream, flag: Option<Arc<AtomicBool>>)
         let _ = send(sock.as_raw_fd(), b"X", MsgFlags::MSG_DONTWAIT);
     };
     unsafe {
-        signal_hook::register(signal, action)
+        signal_hook::low_level::register(signal, action)
     }?;
     Ok(())
 }
@@ -114,18 +115,10 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
 
     let sigterm_flag = Arc::new(AtomicBool::new(false));
 
-    handle_signal(
-        signal_hook::SIGTERM,
-        control_sigterm,
-        Some(Arc::clone(&sigterm_flag)),
-    )
+    handle_signal(SIGTERM, control_sigterm, Some(Arc::clone(&sigterm_flag)))
         .with_context(|e| format!("failed to install SIGTERM handler: {}", e))?;
 
-    handle_signal(
-        signal_hook::SIGHUP,
-        control_sighup,
-        None,
-    )
+    handle_signal(SIGHUP, control_sighup, None)
         .with_context(|e| format!("failed to install SIGHUP handler: {}", e))?;
 
     let db = Database::open(&config.database_path)?;

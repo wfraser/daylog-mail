@@ -1,7 +1,7 @@
+use anyhow::{anyhow, Context};
 use chrono::{Date, Utc};
 use crate::db::UserRaw;
 use crate::time::{DaylogTime, SleepTime};
-use failure::{format_err, ResultExt};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
@@ -15,23 +15,17 @@ pub struct User {
 }
 
 impl TryFrom<UserRaw> for User {
-    type Error = failure::Error;
+    type Error = anyhow::Error;
     fn try_from(raw: UserRaw) -> Result<Self, Self::Error> {
         Ok(User {
-            id: raw.id.ok_or_else(|| {
-                format_err!("missing ID for user {:?}",
-                    raw.username)
-            })?,
+            id: raw.id.ok_or_else(|| anyhow!("missing ID for user {:?}",raw.username))?,
             timezone: raw.timezone.as_str().parse::<chrono_tz::Tz>()
                 .map_err(|e| {
-                    format_err!("failed to parse timezone for user {:?}: {}",
-                        raw.username, e)
+                    // can't use with_context because of type bounds
+                    anyhow!("failed to parse timezone for user {:?}: {}", raw.username, e)
                 })?,
             email_time_local: DaylogTime::parse(&raw.email_time_local)
-                .with_context(|e| {
-                    format!("failed to parse time for user {:?}: {}",
-                        raw.username, e)
-                })?,
+                .with_context(|| format!("failed to parse time for user {:?}", raw.username))?,
             email: raw.email,
             username: raw.username,
         })

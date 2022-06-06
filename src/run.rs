@@ -1,8 +1,8 @@
+use anyhow::Context;
 use chrono::Duration;
 use crate::{Config, RunArgs};
 use crate::db::Database;
 use crate::time::{SleepTime, DaylogTime};
-use failure::ResultExt;
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::poll::{poll, PollFd, PollFlags};
@@ -16,7 +16,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 fn handle_signal(signal: i32, sock: UnixStream, flag: Option<Arc<AtomicBool>>)
-    -> Result<(), failure::Error>
+    -> anyhow::Result<()>
 {
     let action = move || {
         if let Some(ref flag) = flag {
@@ -97,7 +97,7 @@ fn read_until_ewouldblock(mut file: impl Read) -> io::Result<()> {
     Ok(())
 }
 
-fn set_nonblocking(f: RawFd) -> Result<(), failure::Error> {
+fn set_nonblocking(f: RawFd) -> anyhow::Result<()> {
     let flags_raw = fcntl(f, FcntlArg::F_GETFL)?;
     let mut flags = OFlag::from_bits_truncate(flags_raw);
     flags.insert(OFlag::O_NONBLOCK);
@@ -105,7 +105,7 @@ fn set_nonblocking(f: RawFd) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
+pub fn run(config: &Config, args: RunArgs) -> anyhow::Result<()> {
     info!("starting service");
 
     let (control, control_sigterm) = UnixStream::pair()?;
@@ -117,10 +117,10 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
     let sigterm_flag = Arc::new(AtomicBool::new(false));
 
     handle_signal(SIGTERM, control_sigterm, Some(Arc::clone(&sigterm_flag)))
-        .with_context(|e| format!("failed to install SIGTERM handler: {}", e))?;
+        .context("failed to install SIGTERM handler")?;
 
     handle_signal(SIGHUP, control_sighup, None)
-        .with_context(|e| format!("failed to install SIGHUP handler: {}", e))?;
+        .context("failed to install SIGHUP handler")?;
 
     let db = Database::open(&config.database_path)?;
 
@@ -148,7 +148,7 @@ pub fn run(config: &Config, args: RunArgs) -> Result<(), failure::Error> {
             SleepResult::Completed => (),
             SleepResult::FdReadable => {
                 read_until_ewouldblock(&control)
-                    .with_context(|e| format!("error draining control file: {}", e))?;
+                    .context("error draining control file")?;
                 continue;
             }
         }

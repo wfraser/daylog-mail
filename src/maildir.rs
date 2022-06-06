@@ -1,5 +1,5 @@
+use anyhow::Context;
 use crate::mail::{Mail, MailProcessAction, MailSource, RunStats};
-use failure::{Error, ResultExt};
 use maildir::Maildir;
 use std::path::Path;
 
@@ -17,7 +17,7 @@ impl DaylogMaildir {
 
 impl MailSource for DaylogMaildir {
     fn read(&mut self, mut handler: Box<dyn FnMut(Mail) -> MailProcessAction>)
-        -> Result<RunStats, Error>
+        -> anyhow::Result<RunStats>
     {
         let mut stats = RunStats::default();
         for entry_result in self.maildir.list_new() {
@@ -45,12 +45,12 @@ impl MailSource for DaylogMaildir {
                     //self.maildir.delete(entry.id())
                     // for now, let's save them as seen instead.
                     self.maildir.move_new_to_cur_with_flags(entry.id(), "S")
-                        .with_context(|e| format!("failed to remove message {:?}: {}", entry.id(), e))?;
+                        .with_context(|| format!("failed to remove message {:?}", entry.id()))?;
                     stats.num_removed += 1;
                 }
                 MailProcessAction::Keep => {
                     self.maildir.move_new_to_cur(&id)
-                        .with_context(|e| format!("failed to move message {} from new to cur: {}", id, e))?;
+                        .with_context(|| format!("failed to move message {} from new to cur", id))?;
                     stats.num_kept += 1;
                 }
                 MailProcessAction::LeaveUnread => {

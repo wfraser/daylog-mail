@@ -1,15 +1,14 @@
+use anyhow::Context;
 use crate::config::{Config, IncomingMailConfig};
 use crate::mail::{MailProcessAction, MailSource};
 use crate::maildir::DaylogMaildir;
 use crate::message_id::{is_our_message_id, read_secret_key, verify_message_id};
 use crate::{IngestArgs, MailTransformArgs};
-use failure::ResultExt;
 use regex::Regex;
 
-pub fn ingest(config: &Config, args: IngestArgs) -> Result<(), failure::Error> {
+pub fn ingest(config: &Config, args: IngestArgs) -> anyhow::Result<()> {
     let key_bytes = read_secret_key(&config.secret_key_path)
-        .with_context(|e|
-            format!("failed to read secret key {:?}: {}", config.secret_key_path, e))?;
+        .with_context(|| format!("failed to read secret key {:?}", config.secret_key_path))?;
 
     let mut db = crate::db::Database::open(&config.database_path)?;
 
@@ -85,7 +84,7 @@ pub fn ingest(config: &Config, args: IngestArgs) -> Result<(), failure::Error> {
 }
 
 pub fn mail_transform(_config: &Config, args: MailTransformArgs, raw: &[u8])
-    -> Result<String, failure::Error>
+    -> anyhow::Result<String>
 {
     let parsed = mailparse::parse_mail(raw)
         .context("failed to parse mail")?;

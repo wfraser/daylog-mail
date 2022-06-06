@@ -1,9 +1,9 @@
+use anyhow::{anyhow, Context};
 use chrono::{Datelike, Duration, NaiveDate};
 use crate::{SendArgs, todays_date};
 use crate::config::Config;
 use crate::db::Database;
 use crate::message_id::{self, read_secret_key};
-use failure::{format_err, ResultExt};
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
 
@@ -16,10 +16,9 @@ pub enum Mode {
     User(crate::user::User),
 }
 
-pub fn send(config: &Config, mode: Mode) -> Result<(), failure::Error> {
+pub fn send(config: &Config, mode: Mode) -> anyhow::Result<()> {
     let key_bytes = read_secret_key(&config.secret_key_path)
-        .with_context(|e|
-            format!("failed to read secret key {:?}: {}", config.secret_key_path, e))?;
+        .with_context(|| format!("failed to read secret key {:?}", config.secret_key_path))?;
 
     let db = Database::open(&config.database_path)?;
 
@@ -44,7 +43,7 @@ pub fn send(config: &Config, mode: Mode) -> Result<(), failure::Error> {
             date = match args.date_override {
                 Some(ref date) => {
                     NaiveDate::parse_from_str(date, "%Y-%m-%d")
-                        .with_context(|e| format!("Invalid date specified ({:?}): {}", date, e))?
+                        .with_context(|| format!("Invalid date specified ({:?})", date))?
                 }
                 None => todays_date(&user.timezone),
             };
@@ -53,17 +52,17 @@ pub fn send(config: &Config, mode: Mode) -> Result<(), failure::Error> {
     }
 
     let msgid = message_id::gen_message_id(&username, date, key_bytes)
-        .with_context(|e| format!("failed to generate message ID: {}", e))?;
+        .context("failed to generate message ID")?;
 
     let hostname = hostname::get()
-        .with_context(|e| format!("failed to get hostname: {}", e))?
+        .context("failed to get hostname")?
         .into_string()
-        .map_err(|bad| format_err!("invalid hostname: {:?}", bad))?;
+        .map_err(|bad| anyhow!("invalid hostname: {:?}", bad))?;
 
     if dry_run {
         write_email(io::stdout(), config, &username, &email, &db, date,
                     &format!("{}@{}", msgid, hostname))
-            .with_context(|e| format!("failed to write email: {}", e))?;
+            .context("failed to write email")?;
         return Ok(());
     }
 
@@ -76,17 +75,17 @@ pub fn send(config: &Config, mode: Mode) -> Result<(), failure::Error> {
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()
-        .with_context(|e| format!("failed to run 'sendmail' command: {}", e))?;
+        .context("failed to run 'sendmail' command")?;
 
     {
         let sendmail = child.stdin.as_mut().expect("failed to get 'sendmail' command stdin");
         write_email(sendmail, config, &username, &email, &db, date,
                     &format!("{}@{}", msgid, hostname))
-            .with_context(|e| format!("failed to write email: {}", e))?;
+            .context("failed to write email")?;
     }
 
     child.wait()
-        .with_context(|e| format!("failed to wait for 'mail' command: {}", e))?;
+        .context("failed to wait for 'mail' command")?;
 
     Ok(())
 }
@@ -100,7 +99,7 @@ fn write_email(
     db: &Database,
     date: NaiveDate,
     msgid: &str,
-) -> Result<(), failure::Error> {
+) -> anyhow::Result<()> {
     write!(w, "Date: {}\r\n", chrono::Utc::now().to_rfc2822())?;
     write!(w, "Subject: Daylog for {}\r\n", date.format("%Y-%m-%d"))?;
     write!(w, "From: Daylog <{}>\r\n", config.return_addr)?;

@@ -1,6 +1,6 @@
+use anyhow::{anyhow, bail};
 use chrono::prelude::*;
 use chrono::Duration;
-use failure::bail;
 use std::cmp::Ordering;
 
 /// Daylog operates in UTC, with minute resolution.
@@ -66,16 +66,16 @@ impl DaylogTime {
             + Duration::minutes(i64::from(self.minute))
     }
 
-    pub fn parse(s: &str) -> Result<Self, failure::Error> {
+    pub fn parse(s: &str) -> anyhow::Result<Self> {
         let mut parts = s.splitn(2, ':');
-        let hour: u8 = parts.next().ok_or_else(|| failure::err_msg("couldn't find hour"))?
-            .parse().map_err(|e| failure::err_msg(format!("bad hour: {}", e)))?;
+        let hour: u8 = parts.next().ok_or_else(|| anyhow!("couldn't find hour"))?
+            .parse().map_err(|e| anyhow!(format!("bad hour: {}", e)))?;
         if hour > 23 {
             bail!("hour is out of range");
         }
 
-        let minute: u8 = parts.next().ok_or_else(|| failure::err_msg("couldn't find minute"))?
-            .parse().map_err(|e| failure::err_msg(format!("bad minute: {}", e)))?;
+        let minute: u8 = parts.next().ok_or_else(|| anyhow!("couldn't find minute"))?
+            .parse().map_err(|e| anyhow!(format!("bad minute: {}", e)))?;
         if minute > 59 {
             bail!("minute is out of range");
         }

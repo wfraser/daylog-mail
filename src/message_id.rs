@@ -1,5 +1,5 @@
+use anyhow::{anyhow, bail, Context};
 use chrono::NaiveDate;
-use failure::ResultExt;
 use ring::aead;
 use std::fs::File;
 use std::io::{self, Read};
@@ -31,7 +31,7 @@ pub fn is_our_message_id(s: &str) -> bool {
     s.starts_with(PREFIX)
 }
 
-pub fn gen_message_id(username: &str, date: NaiveDate, key_bytes: [u8; SECRET_KEY_LEN]) -> Result<String, failure::Error> {
+pub fn gen_message_id(username: &str, date: NaiveDate, key_bytes: [u8; SECRET_KEY_LEN]) -> anyhow::Result<String> {
     let plaintext = format!("{}.{}", username, date.format("%Y-%m-%d"));
 
     let key = aead_key(key_bytes);
@@ -43,21 +43,21 @@ pub fn gen_message_id(username: &str, date: NaiveDate, key_bytes: [u8; SECRET_KE
     Ok(format!("{}.{}.{}", PREFIX, nonce.base64(), base64_encode(&encrypted)))
 }
 
-pub fn verify_message_id(message_id: &str, key_bytes: [u8; SECRET_KEY_LEN]) -> Result<(String, String), failure::Error> {
+pub fn verify_message_id(message_id: &str, key_bytes: [u8; SECRET_KEY_LEN]) -> anyhow::Result<(String, String)> {
     let mut parts = message_id.split('@').next().unwrap().split('.');
-    let mut extract = || parts.next().ok_or_else(|| failure::err_msg("not enough parts"));
+    let mut extract = || parts.next().ok_or_else(|| anyhow!("not enough parts"));
 
     let ident = extract()?;
     let ver = extract()?;
     let nonce_base64 = extract()?;
     let encrypted_base64 = extract()?;
     if parts.next().is_some() {
-        return Err(failure::err_msg("too many parts"));
+        bail!("too many parts");
     }
 
     let prefix = format!("{}.{}", ident, ver);
     if prefix != PREFIX {
-        return Err(failure::err_msg("unrecognized prefix"));
+        bail!("unrecognized prefix");
     }
 
     let nonce = TimeNonce::parse(nonce_base64)
@@ -68,19 +68,17 @@ pub fn verify_message_id(message_id: &str, key_bytes: [u8; SECRET_KEY_LEN]) -> R
 
     let key = aead_key(key_bytes);
     let decrypted = key.open_in_place(nonce.as_aead(), aead::Aad::from(prefix.as_bytes()), &mut encrypted)
-        .map_err(|_| failure::err_msg("failed to validate encrypted data"))?;
+        .map_err(|_| anyhow!("failed to validate encrypted data"))?;
 
     // get the parts in reverse order and limit to 2, in case username contains a '.'
     let mut result_parts = decrypted.rsplitn(2, |b| *b == b'.');
-    let mut extract_result = || -> Result<String, failure::Error> {
+    let mut extract_result = || -> anyhow::Result<String> {
         result_parts.next()
-            .ok_or_else(|| failure::err_msg("not enough result parts"))
+            .ok_or_else(|| anyhow!("not enough result parts"))
             .map(Vec::from)
             .and_then(|vec| {
                 String::from_utf8(vec)
-                    .map_err(|e| {
-                        failure::err_msg(format!("invalid utf-8 in decrypted content: {}", e))
-                    })
+                    .context("invalid utf-8 in decrypted content")
             })
     };
     let date = extract_result()?;
@@ -121,7 +119,7 @@ impl TimeNonce {
         base64_encode(&bytes[..end])
     }
 
-    pub fn parse(s: &str) -> Result<Self, failure::Error> {
+    pub fn parse(s: &str) -> anyhow::Result<Self> {
         use std::convert::TryInto;
         let mut bytes = base64_decode(s)
             .context("invalid base64 for nonce")?;

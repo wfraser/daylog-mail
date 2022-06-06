@@ -14,7 +14,6 @@ mod user;
 use chrono::NaiveDate;
 use clap::Parser;
 use crate::config::Config;
-use failure::Error;
 
 #[derive(Parser, Debug)]
 #[clap(version, author, about)]
@@ -86,7 +85,7 @@ pub struct MailTransformArgs {
     pre_transform: bool,
 }
 
-fn main() -> Result<(), Error> {
+fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     stderrlog::new()

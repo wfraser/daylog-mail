@@ -1,5 +1,5 @@
+use anyhow::Context;
 use crate::user::{User, Users};
-use failure::ResultExt;
 use rusqlite::{named_params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
@@ -10,9 +10,9 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn open(path: &Path) -> Result<Self, failure::Error> {
+    pub fn open(path: &Path) -> anyhow::Result<Self> {
         let db = rusqlite::Connection::open(path)
-            .with_context(|e| format!("failed to open SQLite database {:?}: {}", path, e))?;
+            .with_context(|| format!("failed to open SQLite database {:?}", path))?;
 
         // TODO: schema upgrades
 
@@ -22,12 +22,12 @@ impl Database {
             date STRING NOT NULL,\
             body STRING NOT NULL\
         )", [])
-            .with_context(|e| format!("failed to create 'entries' database table: {}", e))?;
+            .context("failed to create 'entries' database table")?;
 
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_username_date ON entries (\
             username, date\
         )", [])
-            .with_context(|e| format!("failed to create index on 'entries' database table: {}", e))?;
+            .context("failed to create index on 'entries' database table")?;
 
         db.execute("CREATE TABLE IF NOT EXISTS users (\
             id INTEGER PRIMARY KEY NOT NULL,\
@@ -36,14 +36,14 @@ impl Database {
             timezone STRING NOT NULL,\
             email_time_local STRING NOT NULL\
         )", [])
-            .with_context(|e| format!("failed to create 'users' database table: {}", e))?;
+            .context("failed to create 'users' database table")?;
 
         Ok(Self {
             db,
         })
     }
 
-    pub fn add_entry(&mut self, username: &str, date: &str, body: &str) -> Result<(), failure::Error> {
+    pub fn add_entry(&mut self, username: &str, date: &str, body: &str) -> anyhow::Result<()> {
         let tx = self.db.transaction()?;
 
         let insert_result = tx.execute(
@@ -70,14 +70,14 @@ impl Database {
                 )
                 .context("failed to update existing entry")?;
         } else {
-            insert_result.with_context(|e| format!("failed to insert entry: {}", e))?;
+            insert_result.context("failed to insert entry")?;
         }
 
         tx.commit().context("failed to commit db transaction")?;
         Ok(())
     }
 
-    pub fn get_all_users(&self) -> Result<Users, failure::Error> {
+    pub fn get_all_users(&self) -> anyhow::Result<Users> {
         serde_rusqlite::from_rows::<UserRaw>(
             self.db.prepare("SELECT * FROM users")?
                 .query([])?
@@ -89,18 +89,18 @@ impl Database {
         .map(Users::new)
     }
 
-    pub fn get_user(&self, username: &str) -> Result<User, failure::Error> {
+    pub fn get_user(&self, username: &str) -> anyhow::Result<User> {
         serde_rusqlite::from_rows::<UserRaw>(
             self.db.prepare("SELECT * FROM users WHERE username = :username")?
                 .query(named_params!{ ":username": username })?
         )
         .next()
         .transpose()?
-        .ok_or_else(|| failure::format_err!("no such user {}", username))
+        .ok_or_else(|| anyhow::anyhow!("no such user {}", username))
         .and_then(User::try_from)
     }
 
-    pub fn get_entry(&self, username: &str, date: &str) -> Result<Option<String>, failure::Error> {
+    pub fn get_entry(&self, username: &str, date: &str) -> anyhow::Result<Option<String>> {
         self.db.prepare("SELECT body FROM entries \
                 WHERE username = :username \
                 AND date = :date")

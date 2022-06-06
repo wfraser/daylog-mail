@@ -1,8 +1,8 @@
-use failure::{Error, ResultExt};
+use anyhow::Context;
 use mailparse::{MailHeaderMap, ParsedMail};
 
 pub trait MailSource {
-    fn read(&mut self, handler: Box<dyn FnMut(Mail) -> MailProcessAction>) -> Result<RunStats, Error>;
+    fn read(&mut self, handler: Box<dyn FnMut(Mail) -> MailProcessAction>) -> anyhow::Result<RunStats>;
 }
 
 #[derive(Debug, Default)]
@@ -36,9 +36,9 @@ pub struct Mail {
 }
 
 impl Mail {
-    pub fn parse(parsed: ParsedMail) -> Result<Self, Error> {
+    pub fn parse(parsed: ParsedMail) -> anyhow::Result<Self> {
         let msgid = parsed.headers.get_first_value("message-id")
-            .ok_or_else(|| failure::err_msg("message lacks a Message-ID"))
+            .ok_or_else(|| anyhow::anyhow!("message lacks a Message-ID"))
             .map(trim_msgid)
             .context("message has invalid Message-ID")?;
 
@@ -67,7 +67,7 @@ impl Mail {
                 }
             }
             if !found_something {
-                return Err(failure::err_msg("no suitable email message part with plain text found"));
+                anyhow::bail!("no suitable email message part with plain text found");
             }
             body
         };

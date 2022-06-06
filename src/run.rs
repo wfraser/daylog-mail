@@ -3,6 +3,7 @@ use crate::{Config, RunArgs};
 use crate::db::Database;
 use crate::time::{SleepTime, DaylogTime};
 use failure::ResultExt;
+use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::poll::{poll, PollFd, PollFlags};
 use nix::sys::socket::{send, MsgFlags};
@@ -67,16 +68,11 @@ fn sleep_until(time: SleepTime, control: &UnixStream) -> io::Result<SleepResult>
                 debug!("sleep ended due to readable control file");
                 Ok(SleepResult::FdReadable)
             }
-            Err(nix_err) => {
-                match nix_err {
-                    nix::Error::Sys(errno) if errno == nix::errno::Errno::EINTR => {
-                        debug!("got EINTR while sleeping");
-                        continue;
-                    }
-                    nix::Error::Sys(errno) => Err(io::Error::from_raw_os_error(errno as i32)),
-                    other_nix_err => Err(io::Error::new(io::ErrorKind::Other, other_nix_err)),
-                }
+            Err(Errno::EINTR) => {
+                debug!("got EINTR while sleeping");
+                continue;
             }
+            Err(errno) => Err(io::Error::from_raw_os_error(errno as i32)),
         };
     }
 }
@@ -88,7 +84,7 @@ fn read_until_ewouldblock(mut file: impl Read) -> io::Result<()> {
         debug!("control file read result: {:?} / {:#x?}", result, data);
         match result {
             Ok(_) => (),
-            Err(e) if e.raw_os_error() == Some(nix::errno::EWOULDBLOCK as i32) => {
+            Err(e) if e.raw_os_error() == Some(Errno::EWOULDBLOCK as i32) => {
                 break;
             }
             Err(e) => {

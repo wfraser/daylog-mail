@@ -8,6 +8,7 @@ use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::poll::{poll, PollFd, PollFlags};
 use nix::sys::socket::{send, MsgFlags};
 use signal_hook::consts::{SIGHUP, SIGTERM};
+use std::fmt::Write;
 use std::io::{self, Read};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::net::UnixStream;
@@ -38,11 +39,11 @@ enum SleepResult {
 fn duration_fmt(mut dur: Duration) -> String {
     let mut out = format!("{}h, ", dur.num_hours());
     dur = dur - Duration::hours(dur.num_hours());
-    out += &format!("{}m, ", dur.num_minutes());
+    write!(out, "{}m, ", dur.num_minutes()).unwrap();
     dur = dur - Duration::minutes(dur.num_minutes());
-    out += &format!("{}s, ", dur.num_seconds());
+    write!(out, "{}s, ", dur.num_seconds()).unwrap();
     dur = dur - Duration::seconds(dur.num_seconds());
-    out += &format!("{}ns", dur.num_nanoseconds().unwrap());
+    write!(out, "{}ns", dur.num_nanoseconds().unwrap()).unwrap();
     out
 }
 

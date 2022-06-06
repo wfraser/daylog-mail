@@ -373,9 +373,9 @@ dependencies = [
 
 [[package]]
 name = "maildir"
-version = "0.4.4"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e235fc33e17173c74e954925dde2c68892329a8a7d6c09dc01f554228b478a05"
+checksum = "f8e36818ad465a26adc92409158e147e74644f217e0fa77adec6a20c64ee45b5"
 dependencies = [
  "gethostname",
  "mailparse",

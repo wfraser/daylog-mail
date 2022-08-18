@@ -1,6 +1,6 @@
 [package]
 name = "daylog-email"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["Bill Fraser <wfraser@codewise.org>"]
 description = "Daylog is a daily journal keeper, operating over email."
 edition = "2018"

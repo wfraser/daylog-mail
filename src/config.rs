@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Config {
     #[serde(rename = "database")]
     pub database_path: PathBuf,
@@ -30,7 +30,7 @@ impl Config {
 
     pub fn resolve_paths(&mut self, base_path: &Path) {
         for path_mut in &mut [&mut self.database_path, &mut self.secret_key_path] {
-            Self::resolve_path(*path_mut, base_path);
+            Self::resolve_path(path_mut, base_path);
         }
         let IncomingMailConfig::Maildir { path: ref mut incoming_path } = &mut self.incoming_mail;
         Self::resolve_path(incoming_path, base_path);
@@ -43,7 +43,7 @@ impl Config {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub enum IncomingMailConfig {
     /// Maildir path
     #[serde(rename = "maildir")]

@@ -99,7 +99,6 @@ impl TimeNonce {
     }
 
     pub fn as_aead(&self) -> aead::Nonce {
-        use std::convert::TryInto;
         // take nanos as little-endian bytes, and use the low-order 12 bytes for the nonce
         let array: [u8; 12] = self.nanos.to_le_bytes()[0..12].try_into().unwrap();
         aead::Nonce::assume_unique_for_key(array)
@@ -120,7 +119,6 @@ impl TimeNonce {
     }
 
     pub fn parse(s: &str) -> anyhow::Result<Self> {
-        use std::convert::TryInto;
         let mut bytes = base64_decode(s)
             .context("invalid base64 for nonce")?;
         bytes.resize(16, 0);

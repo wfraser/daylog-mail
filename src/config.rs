@@ -13,6 +13,7 @@ pub struct Config {
 
     pub return_addr: String,
 
+    #[serde(with = "serde_yaml::with::singleton_map")] // instead of YAML '!tag' syntax
     pub incoming_mail: IncomingMailConfig,
 }
 

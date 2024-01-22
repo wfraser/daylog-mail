@@ -1,4 +1,6 @@
 use anyhow::{anyhow, bail, Context};
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE;
 use chrono::NaiveDate;
 use ring::aead;
 use std::fs::File;
@@ -8,16 +10,12 @@ use std::path::Path;
 const PREFIX: &str = "daylog.1";
 const SECRET_KEY_LEN: usize = 32;
 
-fn base64_config() -> base64::Config {
-    base64::Config::new(base64::CharacterSet::UrlSafe, false)
-}
-
 fn base64_decode(s: &str) -> Result<Vec<u8>, base64::DecodeError> {
-    base64::decode_config(s, base64_config())
+    URL_SAFE.decode(s)
 }
 
 fn base64_encode(bytes: &[u8]) -> String {
-    base64::encode_config(bytes, base64_config())
+    URL_SAFE.encode(bytes)
 }
 
 pub fn read_secret_key(path: &Path) -> io::Result<[u8; SECRET_KEY_LEN]> {

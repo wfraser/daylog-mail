@@ -48,7 +48,7 @@ fn duration_fmt(mut dur: Duration) -> String {
 }
 
 fn sleep_until(time: SleepTime, control: &UnixStream) -> io::Result<SleepResult> {
-    let pollfd = PollFd::new(control.as_raw_fd(), PollFlags::POLLIN);
+    let pollfd = PollFd::new(control, PollFlags::POLLIN);
     loop {
         let now = chrono::Utc::now().time();
         debug!("now it is {}", now.format("%H:%M:%S"));

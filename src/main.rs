@@ -13,19 +13,19 @@ mod user;
 
 use chrono::NaiveDate;
 use clap::Parser;
-use crate::config::Config;
+use crate::config::{Config, ConfigParser};
 
 #[derive(Parser, Debug)]
 #[clap(version, author, about)]
 struct Args {
-    #[clap(parse(try_from_os_str = Config::try_from_arg))]
+    #[clap(value_parser = ConfigParser)]
     config: Config,
 
     #[clap(subcommand)]
     op: Operation,
 
-    #[clap(parse(from_occurrences), short('v'), long)]
-    verbose: usize,
+    #[clap(action = clap::ArgAction::Count, short('v'), long)]
+    verbose: u8,
 }
 
 #[derive(Parser, Debug)]
@@ -90,7 +90,7 @@ fn main() -> anyhow::Result<()> {
 
     stderrlog::new()
         .module(module_path!())
-        .verbosity(args.verbose)
+        .verbosity(args.verbose as usize)
         .init()?;
 
     debug!("{:#?}", args);

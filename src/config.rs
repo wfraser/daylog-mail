@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Config {
     #[serde(rename = "database")]
     pub database_path: PathBuf,
@@ -17,9 +17,24 @@ pub struct Config {
     pub incoming_mail: IncomingMailConfig,
 }
 
+#[derive(Clone)]
+pub struct ConfigParser;
+
+impl clap::builder::TypedValueParser for ConfigParser {
+    type Value = Config;
+
+    fn parse_ref(&self, cmd: &clap::Command, _arg: Option<&clap::Arg>, value: &OsStr)
+        -> Result<Self::Value, clap::Error>
+    {
+        use clap::error::*;
+        Config::try_from_path(value)
+            .map_err(|msg| Error::raw(ErrorKind::InvalidValue, msg).with_cmd(cmd))
+    }
+}
+
 impl Config {
-    pub fn try_from_arg(os_str: &OsStr) -> Result<Self, String> {
-        let config_path = std::fs::canonicalize(&Path::new(os_str))
+    pub fn try_from_path(os_str: &OsStr) -> Result<Self, String> {
+        let config_path = std::fs::canonicalize(Path::new(os_str))
             .map_err(|e| format!("Unable to canonicalize path {:?}: {}", os_str, e))?;
         let file = File::open(&config_path)
             .map_err(|e| format!("Error opening config file {:?}: {}", config_path, e))?;
@@ -44,7 +59,7 @@ impl Config {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub enum IncomingMailConfig {
     /// Maildir path
     #[serde(rename = "maildir")]

@@ -5,12 +5,13 @@ use crate::db::Database;
 use crate::time::{SleepTime, DaylogTime};
 use nix::errno::Errno;
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
-use nix::poll::{poll, PollFd, PollFlags};
+use nix::poll::{poll, PollFd, PollFlags, PollTimeout};
 use nix::sys::socket::{send, MsgFlags};
 use signal_hook::consts::{SIGHUP, SIGTERM};
 use std::fmt::Write;
 use std::io::{self, Read};
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::fd::{AsFd, BorrowedFd};
+use std::os::unix::io::{AsRawFd};
 use std::os::unix::net::UnixStream;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -48,20 +49,23 @@ fn duration_fmt(mut dur: Duration) -> String {
 }
 
 fn sleep_until(time: SleepTime, control: &UnixStream) -> io::Result<SleepResult> {
-    let pollfd = PollFd::new(control, PollFlags::POLLIN);
+    let pollfd = PollFd::new(control.as_fd(), PollFlags::POLLIN);
+    let mut pollfds = [pollfd];
     loop {
         let now = chrono::Utc::now().time();
         debug!("now it is {}", now.format("%H:%M:%S"));
         let sleep_duration = time.duration_from(now);
-        let sleep_duration_millis = sleep_duration.num_milliseconds() as i32;
-        if sleep_duration_millis < 0 {
+        let Ok(poll_timeout) = sleep_duration
+            .to_std()
+            .map(|t| PollTimeout::try_from(t).unwrap())
+        else {
             // this means we're not keeping up
             warn!("sleep duration is negative: {:?}", sleep_duration);
             return Ok(SleepResult::Completed);
-        }
+        };
         debug!("sleeping for {}", duration_fmt(sleep_duration));
 
-        return match poll(&mut[pollfd], sleep_duration_millis) {
+        return match poll(&mut pollfds, poll_timeout) {
             Ok(0) => {
                 debug!("sleep completed");
                 Ok(SleepResult::Completed)
@@ -97,7 +101,7 @@ fn read_until_ewouldblock(mut file: impl Read) -> io::Result<()> {
     Ok(())
 }
 
-fn set_nonblocking(f: RawFd) -> anyhow::Result<()> {
+fn set_nonblocking(f: BorrowedFd<'_>) -> anyhow::Result<()> {
     let flags_raw = fcntl(f, FcntlArg::F_GETFL)?;
     let mut flags = OFlag::from_bits_truncate(flags_raw);
     flags.insert(OFlag::O_NONBLOCK);
@@ -111,7 +115,7 @@ pub fn run(config: &Config, args: RunArgs) -> anyhow::Result<()> {
     let (control, control_sigterm) = UnixStream::pair()?;
     let control_sighup = control_sigterm.try_clone()?;
 
-    set_nonblocking(control.as_raw_fd())
+    set_nonblocking(control.as_fd())
         .context("failed to set control socket nonblocking")?;
 
     let sigterm_flag = Arc::new(AtomicBool::new(false));

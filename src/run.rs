@@ -60,7 +60,7 @@ fn sleep_until(time: SleepTime, control: &UnixStream) -> io::Result<SleepResult>
             .map(|t| PollTimeout::try_from(t).unwrap())
         else {
             // this means we're not keeping up
-            warn!("sleep duration is negative: {:?}", sleep_duration);
+            warn!("sleep duration is negative: {sleep_duration:?}");
             return Ok(SleepResult::Completed);
         };
         debug!("sleeping for {}", duration_fmt(sleep_duration));
@@ -87,7 +87,7 @@ fn read_until_ewouldblock(mut file: impl Read) -> io::Result<()> {
     loop {
         let mut data = [0u8; 1];
         let result = file.read_exact(&mut data);
-        debug!("control file read result: {:?} / {:#x?}", result, data);
+        debug!("control file read result: {result:?} / {data:#x?}");
         match result {
             Ok(_) => (),
             Err(e) if e.raw_os_error() == Some(Errno::EWOULDBLOCK as i32) => {
@@ -137,7 +137,7 @@ pub fn run(config: &Config, args: RunArgs) -> anyhow::Result<()> {
 
         let (next_time, users) = match users.next_from_time(today, now) {
             Some((next, users)) => {
-                info!("sleep until {}", next);
+                info!("sleep until {next}");
                 (next, users)
             }
             None => {
@@ -158,11 +158,11 @@ pub fn run(config: &Config, args: RunArgs) -> anyhow::Result<()> {
         }
 
         for user in users {
-            info!("sending to {:?}", user);
+            info!("sending to {user:?}");
             if !args.dry_run {
                 let result = crate::send::send(config, crate::send::Mode::User(user.clone()));
                 if let Err(e) = result {
-                    error!("failed to send to {:?}: {}", user, e);
+                    error!("failed to send to {user:?}: {e}");
                 }
             }
         }

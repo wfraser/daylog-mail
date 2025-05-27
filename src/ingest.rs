@@ -41,14 +41,14 @@ pub fn ingest(config: &Config, args: IngestArgs) -> anyhow::Result<()> {
         let body = process_body(&mail.body);
 
         if args.dry_run {
-            println!("body:\n{}", body);
+            println!("body:\n{body}");
         }
 
         for msgid in msgids {
             let (username, date) = match verify_message_id(&msgid, key_bytes) {
                 Ok((username, date)) => {
                     if args.dry_run {
-                        println!("{:?} -> ({:?}, {:?})", msgid, username, date);
+                        println!("{msgid:?} -> ({username:?}, {date:?})");
                     }
                     (username, date)
                 }
@@ -65,7 +65,7 @@ pub fn ingest(config: &Config, args: IngestArgs) -> anyhow::Result<()> {
 
             if !args.dry_run {
                 if let Err(e) = db.add_entry(&username, &date, &body) {
-                    eprintln!("Error adding to database: {:?}", e);
+                    eprintln!("Error adding to database: {e:?}");
                     return MailProcessAction::LeaveUnread;
                 }
             }
@@ -78,7 +78,7 @@ pub fn ingest(config: &Config, args: IngestArgs) -> anyhow::Result<()> {
         }
     }))?;
 
-    info!("{:#?}", stats);
+    info!("{stats:#?}");
 
     Ok(())
 }

@@ -25,10 +25,10 @@ impl MailSource for DaylogMaildir {
             let id = entry.id().to_owned();
 
             let action = match entry.parsed()
-                .map_err(|e| format!("failed to parse mail message {}: {}", id, e))
+                .map_err(|e| format!("failed to parse mail message {id}: {e}"))
                 .and_then(|unstructured| {
                     Mail::parse(unstructured)
-                        .map_err(|e| format!("failed to parse mail message {} (inner): {}", id, e))
+                        .map_err(|e| format!("failed to parse mail message {id} (inner): {e}"))
                 })
             {
                 Ok(mail) => {
@@ -36,7 +36,7 @@ impl MailSource for DaylogMaildir {
                     handler(mail)
                 }
                 Err(msg) => {
-                    eprintln!("Failed to parse mail message {}: {}", id, msg);
+                    eprintln!("Failed to parse mail message {id}: {msg}");
                     MailProcessAction::Keep
                 }
             };
@@ -50,7 +50,7 @@ impl MailSource for DaylogMaildir {
                 }
                 MailProcessAction::Keep => {
                     self.maildir.move_new_to_cur(&id)
-                        .with_context(|| format!("failed to move message {} from new to cur", id))?;
+                        .with_context(|| format!("failed to move message {id} from new to cur"))?;
                     stats.num_kept += 1;
                 }
                 MailProcessAction::LeaveUnread => {

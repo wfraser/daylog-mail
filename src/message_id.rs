@@ -53,7 +53,7 @@ pub fn verify_message_id(message_id: &str, key_bytes: [u8; SECRET_KEY_LEN]) -> a
         bail!("too many parts");
     }
 
-    let prefix = format!("{}.{}", ident, ver);
+    let prefix = format!("{ident}.{ver}");
     if prefix != PREFIX {
         bail!("unrecognized prefix");
     }

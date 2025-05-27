@@ -166,8 +166,8 @@ impl SleepTime {
 impl std::fmt::Display for SleepTime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SleepTime::Today(time) => write!(f, "{} today", time),
-            SleepTime::Tomorrow(time) => write!(f, "{} tomorrow", time),
+            SleepTime::Today(time) => write!(f, "{time} today"),
+            SleepTime::Tomorrow(time) => write!(f, "{time} tomorrow"),
         }
     }
 }

@@ -51,7 +51,7 @@ impl Users {
         // This can probably be improved, because nobody's time can change more than once per day,
         // but this is fast enough for now.
 
-        info!("getting users from DaylogTime {} on {}", time, date);
+        info!("getting users from DaylogTime {time} on {date}");
         let mut by_time = BTreeMap::<SleepTime, Vec<User>>::new();
         let now = date.and_time(time.as_naivetime()).and_utc();
 

@@ -93,7 +93,7 @@ fn main() -> anyhow::Result<()> {
         .verbosity(args.verbose as usize)
         .init()?;
 
-    debug!("{:#?}", args);
+    debug!("{args:#?}");
 
     match args.op {
         Operation::Ingest(op) => ingest::ingest(&args.config, op),
@@ -103,7 +103,7 @@ fn main() -> anyhow::Result<()> {
             let mut raw_input = vec![];
             std::io::Read::read_to_end(&mut std::io::stdin(), &mut raw_input).unwrap();
             let processed = ingest::mail_transform(&args.config, op, &raw_input)?;
-            println!("{}", processed);
+            println!("{processed}");
             Ok(())
         }
     }

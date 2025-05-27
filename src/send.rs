@@ -43,7 +43,7 @@ pub fn send(config: &Config, mode: Mode) -> anyhow::Result<()> {
             date = match args.date_override {
                 Some(ref date) => {
                     NaiveDate::parse_from_str(date, "%Y-%m-%d")
-                        .with_context(|| format!("Invalid date specified ({:?})", date))?
+                        .with_context(|| format!("Invalid date specified ({date:?})"))?
                 }
                 None => todays_date(&user.timezone),
             };
@@ -57,11 +57,11 @@ pub fn send(config: &Config, mode: Mode) -> anyhow::Result<()> {
     let hostname = hostname::get()
         .context("failed to get hostname")?
         .into_string()
-        .map_err(|bad| anyhow!("invalid hostname: {:?}", bad))?;
+        .map_err(|bad| anyhow!("invalid hostname: {bad:?}"))?;
 
     if dry_run {
         write_email(io::stdout(), config, &username, &email, &db, date,
-                    &format!("{}@{}", msgid, hostname))
+                    &format!("{msgid}@{hostname}"))
             .context("failed to write email")?;
         return Ok(());
     }
@@ -80,7 +80,7 @@ pub fn send(config: &Config, mode: Mode) -> anyhow::Result<()> {
     {
         let sendmail = child.stdin.as_mut().expect("failed to get 'sendmail' command stdin");
         write_email(sendmail, config, &username, &email, &db, date,
-                    &format!("{}@{}", msgid, hostname))
+                    &format!("{msgid}@{hostname}"))
             .context("failed to write email")?;
     }
 
@@ -103,8 +103,8 @@ fn write_email(
     write!(w, "Date: {}\r\n", chrono::Utc::now().to_rfc2822())?;
     write!(w, "Subject: Daylog for {}\r\n", date.format("%Y-%m-%d"))?;
     write!(w, "From: Daylog <{}>\r\n", config.return_addr)?;
-    write!(w, "To: <{}>\r\n", email)?;
-    write!(w, "Message-ID: <{}>\r\n", msgid)?;
+    write!(w, "To: <{email}>\r\n")?;
+    write!(w, "Message-ID: <{msgid}>\r\n")?;
     write!(w, "\r\n")?;
     write!(w, "What'd you do today, {}?\r\n", date.format("%A, %B %e, %Y"))?; // Sunday, July 8, 2001
     write!(w, "\r\n")?;
@@ -168,7 +168,7 @@ fn write_email(
             },
             Ok(None) => (),
             Err(e) => {
-                eprintln!("error querying database for {}/{}: {}", username, past_date, e);
+                eprintln!("error querying database for {username}/{past_date}: {e}");
             }
         }
     }
@@ -179,12 +179,12 @@ fn write_email(
     for (label, body) in &past_events {
         let lines = body.lines().collect::<Vec<_>>();
         if lines.len() > 1 {
-            write!(w, "\t{}:\r\n", label)?;
+            write!(w, "\t{label}:\r\n")?;
             for line in &lines {
-                write!(w, "\t\t{}\r\n", line)?;
+                write!(w, "\t\t{line}\r\n")?;
             }
         } else {
-            write!(w, "\t{}:\t{}\r\n", label, body)?;
+            write!(w, "\t{label}:\t{body}\r\n")?;
         }
     }
     if !past_events.is_empty() {

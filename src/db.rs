@@ -12,7 +12,7 @@ pub struct Database {
 impl Database {
     pub fn open(path: &Path) -> anyhow::Result<Self> {
         let db = rusqlite::Connection::open(path)
-            .with_context(|| format!("failed to open SQLite database {:?}", path))?;
+            .with_context(|| format!("failed to open SQLite database {path:?}"))?;
 
         // TODO: schema upgrades
 
@@ -61,7 +61,7 @@ impl Database {
                 named_params!{ ":username": username, ":date": date },
                 |row| Ok((row.get(0)?, row.get(1)?)),
                 )?;
-            info!("updating existing row {}: {}/{}", id, username, date);
+            info!("updating existing row {id}: {username}/{date}");
             update_body.push('\n');
             update_body +=  body;
             tx.execute(
@@ -111,7 +111,6 @@ impl Database {
             )
             .optional()
             .context("failed to query entry")
-            .map_err(Into::into)
     }
 }
 

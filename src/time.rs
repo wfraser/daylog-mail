@@ -11,9 +11,9 @@ pub struct DaylogTime {
 }
 
 impl DaylogTime {
-    pub fn now() -> (Date<Utc>, Self) {
+    pub fn now() -> (NaiveDate, Self) {
         let now = Utc::now();
-        (now.date(), Self::from(now.time()))
+        (now.date_naive(), Self::from(now.time()))
     }
 
     #[cfg(test)]
@@ -43,11 +43,11 @@ impl DaylogTime {
     }
 
     pub fn as_naivetime(self) -> NaiveTime {
-        NaiveTime::from_hms(
+        NaiveTime::from_hms_opt(
             u32::from(self.hour),
             u32::from(self.minute),
             0,
-        )
+        ).unwrap()
     }
 
     fn from_naivetime(t: NaiveTime) -> Self {
@@ -103,7 +103,7 @@ impl DaylogTime {
             SleepTime::Today(Self::from_naivetime(
                 local_today.naive_utc().time()))
         } else {
-            let tomorrow = utc_now.naive_utc().date().succ();
+            let tomorrow = utc_now.naive_utc().date().succ_opt().unwrap();
             let local_tomorrow = adj(tomorrow);
             SleepTime::Tomorrow(Self::from_naivetime(
                 local_tomorrow.naive_utc().time()))
@@ -153,7 +153,7 @@ impl SleepTime {
         match self {
             SleepTime::Tomorrow(time) => {
                 Duration::days(1)
-                    - (earlier_time - NaiveTime::from_hms(0, 0, 0))
+                    - (earlier_time - NaiveTime::default()) // midnight
                     + time.duration_since_start_of_day()
             }
             SleepTime::Today(time) => {
@@ -193,6 +193,7 @@ impl PartialOrd for SleepTime {
 }
 
 #[cfg(test)]
+#[allow(deprecated)] // idgaf about all the panicking functions
 mod test {
     use super::*;
 

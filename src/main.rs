@@ -113,5 +113,5 @@ pub fn todays_date<Tz>(tz: &Tz) -> NaiveDate
     where Tz: chrono::TimeZone,
           Tz::Offset: std::fmt::Display,
 {
-    chrono::Utc::now().with_timezone(tz).date().naive_local()
+    chrono::Utc::now().with_timezone(tz).date_naive()
 }

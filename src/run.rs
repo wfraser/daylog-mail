@@ -169,13 +169,13 @@ pub fn run(config: &Config, args: RunArgs) -> anyhow::Result<()> {
             SleepTime::Today(time) => {
                 let time = time.succ();
                 if time == DaylogTime::zero() {
-                    today = today.succ();
+                    today = today.succ_opt().unwrap();
                 }
                 time
             }
             SleepTime::Tomorrow(time) => {
                 // we already slept until tomorrow, so now it's today no matter what
-                today = today.succ();
+                today = today.succ_opt().unwrap();
                 time.succ()
             }
         };

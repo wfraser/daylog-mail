@@ -4,6 +4,7 @@ use crate::{SendArgs, todays_date};
 use crate::config::Config;
 use crate::db::Database;
 use crate::message_id::{self, read_secret_key};
+use std::borrow::Cow;
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
 
@@ -109,51 +110,34 @@ fn write_email(
     write!(w, "What'd you do today, {}?\r\n", date.format("%A, %B %e, %Y"))?; // Sunday, July 8, 2001
     write!(w, "\r\n")?;
 
-    fn months_ago(date: NaiveDate, months: i32) -> Option<NaiveDate> {
-        let mut year = date.year();
-        let mut month = date.month();
-        let day = date.day();
-
-        for _ in 0 .. months {
-            month -= 1;
-            if month == 0 {
-                month = 12;
-                year -= 1;
-            }
-        }
-
-        NaiveDate::from_ymd_opt(year, month, day)
-    }
-
-    fn years_ago(date: NaiveDate, years: i32) -> Option<NaiveDate> {
-        NaiveDate::from_ymd_opt(
-            date.year() - years,
-            date.month(),
-            date.day()
-        )
-    }
-
-    let past_times = [
-        ("one week ago", Some(date - Duration::weeks(1))),
-        ("two weeks ago", Some(date - Duration::weeks(2))),
-        ("three weeks ago", Some(date - Duration::weeks(3))),
-        ("one month ago", months_ago(date, 1)),
-        ("two months ago", months_ago(date, 2)),
-        ("three months ago", months_ago(date, 3)),
-        ("four months ago", months_ago(date, 4)),
-        ("five months ago", months_ago(date, 5)),
-        ("six months ago", months_ago(date, 6)),
-        ("one year ago", years_ago(date, 1)),
-        ("two years ago", years_ago(date, 2)),
-        ("three years ago", years_ago(date, 3)),
-        ("four years ago", years_ago(date, 4)),
-        ("five years ago", years_ago(date, 5)),
-        ("six years ago", years_ago(date, 6)),
-        ("seven years ago", years_ago(date, 7)),
-        ("eight years ago", years_ago(date, 8)),
-        ("nine years ago", years_ago(date, 9)),
-        ("ten years ago", years_ago(date, 10)),
+    use Cow::Borrowed as B;
+    let mut past_times = vec![
+        (B("one week ago"), Some(date - Duration::weeks(1))),
+        (B("two weeks ago"), Some(date - Duration::weeks(2))),
+        (B("three weeks ago"), Some(date - Duration::weeks(3))),
+        (B("one month ago"), months_ago(date, 1)),
+        (B("two months ago"), months_ago(date, 2)),
+        (B("three months ago"), months_ago(date, 3)),
+        (B("four months ago"), months_ago(date, 4)),
+        (B("five months ago"), months_ago(date, 5)),
+        (B("six months ago"), months_ago(date, 6)),
+        (B("one year ago"), years_ago(date, 1)),
     ];
+
+
+    if let Some(ymd_str) = db.oldest_entry_date(username)? {
+        let oldest = NaiveDate::parse_from_str(&ymd_str, "%Y-%m-%d").context("invalid date")?;
+
+        for years in 2.. {
+            let Some(ts) = years_ago(date, years) else {
+                continue;
+            };
+            if ts < oldest {
+                break;
+            }
+            past_times.push((Cow::Owned(format!("{} years ago", english(years))), Some(ts)));
+        }
+    }
 
     let mut past_events = vec![];
     for (label, past_date) in &past_times {
@@ -194,4 +178,92 @@ fn write_email(
     write!(w, "-- \r\n")?;
     write!(w, "sent by daylog\r\n")?;
     Ok(())
+}
+
+fn months_ago(date: NaiveDate, months: u32) -> Option<NaiveDate> {
+    let mut year = date.year();
+    let mut month = date.month();
+    let day = date.day();
+
+    for _ in 0 .. months {
+        month -= 1;
+        if month == 0 {
+            month = 12;
+            year -= 1;
+        }
+    }
+
+    NaiveDate::from_ymd_opt(year, month, day)
+}
+
+fn years_ago(date: NaiveDate, years: u16) -> Option<NaiveDate> {
+    NaiveDate::from_ymd_opt(
+        date.year() - i32::from(years),
+        date.month(),
+        date.day()
+    )
+}
+
+/// Return the english number word(s) for inputs less than 100.
+/// For numbers >= 100, formats it as a decimal number string.
+fn english(n: u16) -> Cow<'static, str> {
+    Cow::Borrowed(match n {
+        0 => "zero",
+        1 => "one",
+        2 => "two",
+        3 => "three",
+        4 => "four",
+        5 => "five",
+        6 => "six",
+        7 => "seven",
+        8 => "eight",
+        9 => "nine",
+        10 => "ten",
+        11 => "eleven",
+        12 => "twelve",
+        13 => "thirteen",
+        14 => "fourteen",
+        15 => "fifteen",
+        16 => "sixteen",
+        17 => "seventeen",
+        18 => "eighteen",
+        19 => "nineteen",
+        20 .. 100 => {
+            let tens = match n / 10 {
+                2 => "twenty",
+                3 => "thirty",
+                4 => "forty",
+                5 => "fifty",
+                6 => "sixty",
+                7 => "seventy",
+                8 => "eighty",
+                9 => "ninety",
+                _ => unreachable!(),
+            };
+            let ones = n % 10;
+            if ones == 0 {
+                tens
+            } else {
+                return Cow::Owned(format!("{tens}-{}", english(ones)));
+            }
+        }
+        _ => return Cow::Owned(format!("{n}")),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_english() {
+        assert_eq!(english(0), "zero");
+        assert_eq!(english(1), "one");
+        assert_eq!(english(10), "ten");
+        assert_eq!(english(16), "sixteen");
+        assert_eq!(english(25), "twenty-five");
+        assert_eq!(english(99), "ninety-nine");
+        assert_eq!(english(100), "100");
+        assert_eq!(english(255), "255");
+    }
 }

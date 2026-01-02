@@ -112,6 +112,20 @@ impl Database {
             .optional()
             .context("failed to query entry")
     }
+
+    pub fn oldest_entry_date(&self, username: &str) -> anyhow::Result<Option<String>> {
+        self.db.prepare("SELECT date FROM entries \
+                WHERE username = :username \
+                ORDER BY date ASC \
+                LIMIT 1")
+            .context("failed to prepare oldest_date query")?
+            .query_row(
+                named_params!{ ":username": username },
+                |row| row.get::<_, String>(0)
+            )
+            .optional()
+            .context("failed to query oldest entry")
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
